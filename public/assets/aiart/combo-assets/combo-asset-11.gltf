@@ -1,0 +1,137 @@
+{
+  "asset": {
+    "generator": "Khronos glTF Blender I/O v5.1.20",
+    "version": "2.0"
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "name": "Scene",
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "mesh": 0,
+      "name": "combo_asset_11"
+    }
+  ],
+  "materials": [
+    {
+      "doubleSided": true,
+      "name": "tripo_material_65e9c35c-adec-4255-8776-8c5396e9612d.010",
+      "pbrMetallicRoughness": {
+        "baseColorTexture": {
+          "index": 0
+        },
+        "metallicFactor": 0,
+        "roughnessFactor": 1
+      }
+    }
+  ],
+  "meshes": [
+    {
+      "name": "combo_asset_11_mesh",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "NORMAL": 1,
+            "TEXCOORD_0": 2
+          },
+          "indices": 3,
+          "material": 0
+        }
+      ]
+    }
+  ],
+  "textures": [
+    {
+      "sampler": 0,
+      "source": 0
+    }
+  ],
+  "images": [
+    {
+      "mimeType": "image/png",
+      "name": "Color_65e9c35c-adec-4255-8776-8c5396e9612d",
+      "uri": "Color_65e9c35c-adec-4255-8776-8c5396e9612d.png"
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 2041,
+      "max": [
+        0.107421875,
+        0.1757812649011612,
+        0.107421875
+      ],
+      "min": [
+        -0.10742190480232239,
+        0,
+        -0.1074218899011612
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 2041,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5126,
+      "count": 2041,
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 3,
+      "componentType": 5123,
+      "count": 4254,
+      "type": "SCALAR"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteLength": 24492,
+      "byteOffset": 0,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteLength": 24492,
+      "byteOffset": 24492,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteLength": 16328,
+      "byteOffset": 48984,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteLength": 8508,
+      "byteOffset": 65312,
+      "target": 34963
+    }
+  ],
+  "samplers": [
+    {
+      "magFilter": 9729,
+      "minFilter": 9987
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 73820,
+      "uri": "combo-asset-11.bin"
+    }
+  ]
+}

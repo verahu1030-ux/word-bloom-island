@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>言语生花</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./dist/main.css?v=topiary-windmill-entry-v1-20260616" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="scene"></canvas>
+      <div class="hud hud-left">
+        <strong>言语生花</strong>
+        <span>用语言唤醒世界</span>
+      </div>
+      <div class="hud hud-right">
+        <span>WASD / 方向键 移动镜头</span>
+        <span>拖拽旋转 · 滚轮调高度</span>
+        <span>R 生成奖励光球 · 点击光球揭示</span>
+        <span>1-6 指定光球类型 · M 显示分区</span>
+      </div>
+      <div id="loading">正在生成成长岛屿...</div>
+    </div>
+    <script>
+      window.__V7_STANDALONE_VISUAL__ = 'softIsland';
+      window.__V7_PUBLIC_ASSET_BASE__ = './public/';
+      window.__V7_EMBEDDED_DEMO_SAVE__ = null;
+    </script>
+    <script type="module" src="./dist/main.js"></script>
+  </body>
+</html>
