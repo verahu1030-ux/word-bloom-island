@@ -22295,6 +22295,103 @@ var TorusGeometry = class _TorusGeometry extends BufferGeometry {
     return new _TorusGeometry(data.radius, data.tube, data.radialSegments, data.tubularSegments, data.arc);
   }
 };
+var TubeGeometry = class _TubeGeometry extends BufferGeometry {
+  constructor(path = new QuadraticBezierCurve3(new Vector3(-1, -1, 0), new Vector3(-1, 1, 0), new Vector3(1, 1, 0)), tubularSegments = 64, radius = 1, radialSegments = 8, closed = false) {
+    super();
+    this.type = "TubeGeometry";
+    this.parameters = {
+      path,
+      tubularSegments,
+      radius,
+      radialSegments,
+      closed
+    };
+    const frames = path.computeFrenetFrames(tubularSegments, closed);
+    this.tangents = frames.tangents;
+    this.normals = frames.normals;
+    this.binormals = frames.binormals;
+    const vertex2 = new Vector3();
+    const normal = new Vector3();
+    const uv = new Vector2();
+    let P = new Vector3();
+    const vertices = [];
+    const normals = [];
+    const uvs = [];
+    const indices = [];
+    generateBufferData();
+    this.setIndex(indices);
+    this.setAttribute("position", new Float32BufferAttribute(vertices, 3));
+    this.setAttribute("normal", new Float32BufferAttribute(normals, 3));
+    this.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
+    function generateBufferData() {
+      for (let i = 0; i < tubularSegments; i++) {
+        generateSegment(i);
+      }
+      generateSegment(closed === false ? tubularSegments : 0);
+      generateUVs();
+      generateIndices();
+    }
+    function generateSegment(i) {
+      P = path.getPointAt(i / tubularSegments, P);
+      const N = frames.normals[i];
+      const B = frames.binormals[i];
+      for (let j = 0; j <= radialSegments; j++) {
+        const v = j / radialSegments * Math.PI * 2;
+        const sin = Math.sin(v);
+        const cos = -Math.cos(v);
+        normal.x = cos * N.x + sin * B.x;
+        normal.y = cos * N.y + sin * B.y;
+        normal.z = cos * N.z + sin * B.z;
+        normal.normalize();
+        normals.push(normal.x, normal.y, normal.z);
+        vertex2.x = P.x + radius * normal.x;
+        vertex2.y = P.y + radius * normal.y;
+        vertex2.z = P.z + radius * normal.z;
+        vertices.push(vertex2.x, vertex2.y, vertex2.z);
+      }
+    }
+    function generateIndices() {
+      for (let j = 1; j <= tubularSegments; j++) {
+        for (let i = 1; i <= radialSegments; i++) {
+          const a = (radialSegments + 1) * (j - 1) + (i - 1);
+          const b = (radialSegments + 1) * j + (i - 1);
+          const c = (radialSegments + 1) * j + i;
+          const d = (radialSegments + 1) * (j - 1) + i;
+          indices.push(a, b, d);
+          indices.push(b, c, d);
+        }
+      }
+    }
+    function generateUVs() {
+      for (let i = 0; i <= tubularSegments; i++) {
+        for (let j = 0; j <= radialSegments; j++) {
+          uv.x = i / tubularSegments;
+          uv.y = j / radialSegments;
+          uvs.push(uv.x, uv.y);
+        }
+      }
+    }
+  }
+  copy(source) {
+    super.copy(source);
+    this.parameters = Object.assign({}, source.parameters);
+    return this;
+  }
+  toJSON() {
+    const data = super.toJSON();
+    data.path = this.parameters.path.toJSON();
+    return data;
+  }
+  static fromJSON(data) {
+    return new _TubeGeometry(
+      new Curves[data.path.type]().fromJSON(data.path),
+      data.tubularSegments,
+      data.radius,
+      data.radialSegments,
+      data.closed
+    );
+  }
+};
 var MeshStandardMaterial = class extends Material {
   static get type() {
     return "MeshStandardMaterial";
@@ -27645,7 +27742,7 @@ var DEMO_WORDS = [
   { id: "zh_001", text: "\u4E00", pinyin: "y\u012B", phrase: "\u4E00\u6735\u82B1", emoji: "1\uFE0F\u20E3", rewardKind: "flower" },
   { id: "zh_021", text: "\u5C71", pinyin: "sh\u0101n", phrase: "\u5927\u5C71", emoji: "\u26F0\uFE0F", rewardKind: "flower" },
   { id: "zh_002", text: "\u4E8C", pinyin: "\xE8r", phrase: "\u4E8C\u6708", emoji: "2\uFE0F\u20E3", rewardKind: "flower" },
-  { id: "zh_034", text: "\u6C34", pinyin: "shu\u01D0", phrase: "\u6CB3\u6C34", emoji: "\u{1F4A7}", rewardKind: "lilyPad" },
+  { id: "zh_034", text: "\u6C34", pinyin: "shu\u01D0", phrase: "\u6CB3\u6C34", emoji: "\u{1F4A7}", rewardKind: "reed" },
   { id: "zh_003", text: "\u4E09", pinyin: "s\u0101n", phrase: "\u4E09\u53EA\u9E1F", emoji: "3\uFE0F\u20E3", rewardKind: "flower" },
   { id: "zh_043", text: "\u82B1", pinyin: "hu\u0101", phrase: "\u82B1\u6735", emoji: "\u{1F338}", rewardKind: "flower" },
   { id: "zh_004", text: "\u56DB", pinyin: "s\xEC", phrase: "\u56DB\u5B63", emoji: "4\uFE0F\u20E3", rewardKind: "grass" },
@@ -27669,8 +27766,8 @@ var DEMO_WORDS = [
   { id: "zh_016", text: "\u65E5", pinyin: "r\xEC", phrase: "\u65E5\u51FA", emoji: "\u2600\uFE0F", rewardKind: "glow" },
   { id: "zh_018", text: "\u706B", pinyin: "hu\u01D2", phrase: "\u706B\u82D7", emoji: "\u{1F525}", rewardKind: "glow" },
   { id: "zh_019", text: "\u6728", pinyin: "m\xF9", phrase: "\u6728\u5934", emoji: "\u{1F333}", rewardKind: "tree" },
-  { id: "zh_020", text: "\u79BE", pinyin: "h\xE9", phrase: "\u79BE\u82D7", emoji: "\u{1F33E}", rewardKind: "grass" },
-  { id: "zh_023", text: "\u96E8", pinyin: "y\u01D4", phrase: "\u96E8\u6C34", emoji: "\u{1F327}\uFE0F", rewardKind: "lilyPad" },
+  { id: "zh_020", text: "\u79BE", pinyin: "h\xE9", phrase: "\u79BE\u82D7", emoji: "\u{1F33E}", rewardKind: "reed" },
+  { id: "zh_023", text: "\u96E8", pinyin: "y\u01D4", phrase: "\u96E8\u6C34", emoji: "\u{1F327}\uFE0F", rewardKind: "mushroom" },
   { id: "zh_024", text: "\u98CE", pinyin: "f\u0113ng", phrase: "\u5927\u98CE", emoji: "\u{1F32C}\uFE0F", rewardKind: "grass" },
   { id: "zh_025", text: "\u7530", pinyin: "ti\xE1n", phrase: "\u7530\u5730", emoji: "\u{1F33E}", rewardKind: "flower" },
   { id: "zh_026", text: "\u4EBA", pinyin: "r\xE9n", phrase: "\u5927\u4EBA", emoji: "\u{1F9CD}", rewardKind: "flower" },
@@ -27679,8 +27776,8 @@ var DEMO_WORDS = [
   { id: "zh_029", text: "\u591A", pinyin: "du\u014D", phrase: "\u591A\u5C11", emoji: "\u{1F522}", rewardKind: "flower" },
   { id: "zh_030", text: "\u5C11", pinyin: "sh\u01CEo", phrase: "\u591A\u5C11", emoji: "\u261D\uFE0F", rewardKind: "flower" },
   { id: "zh_031", text: "\u5929", pinyin: "ti\u0101n", phrase: "\u5929\u7A7A", emoji: "\u{1F324}\uFE0F", rewardKind: "glow" },
-  { id: "zh_032", text: "\u5730", pinyin: "d\xEC", phrase: "\u571F\u5730", emoji: "\u{1F30D}", rewardKind: "grass" },
-  { id: "zh_033", text: "\u571F", pinyin: "t\u01D4", phrase: "\u571F\u5730", emoji: "\u{1F7EB}", rewardKind: "flower" },
+  { id: "zh_032", text: "\u5730", pinyin: "d\xEC", phrase: "\u571F\u5730", emoji: "\u{1F30D}", rewardKind: "mushroom" },
+  { id: "zh_033", text: "\u571F", pinyin: "t\u01D4", phrase: "\u571F\u5730", emoji: "\u{1F7EB}", rewardKind: "mushroom" },
   { id: "zh_035", text: "\u7C73", pinyin: "m\u01D0", phrase: "\u5927\u7C73", emoji: "\u{1F35A}", rewardKind: "grass" },
   { id: "zh_036", text: "\u7AF9", pinyin: "zh\xFA", phrase: "\u7AF9\u5B50", emoji: "\u{1F38B}", rewardKind: "tree" },
   { id: "zh_037", text: "\u7F8A", pinyin: "y\xE1ng", phrase: "\u5C0F\u7F8A", emoji: "\u{1F411}", rewardKind: "flower" },
@@ -27698,11 +27795,11 @@ var DEMO_WORDS = [
   { id: "zh_053", text: "\u95E8", pinyin: "m\xE9n", phrase: "\u5927\u95E8", emoji: "\u{1F6AA}", rewardKind: "tree" },
   { id: "zh_054", text: "\u5BB6", pinyin: "ji\u0101", phrase: "\u56DE\u5BB6", emoji: "\u{1F3E0}", rewardKind: "tree" },
   { id: "zh_055", text: "\u513F", pinyin: "\xE9r", phrase: "\u513F\u6B4C", emoji: "\u{1F9D2}", rewardKind: "flower" },
-  { id: "zh_056", text: "\u6CB3", pinyin: "h\xE9", phrase: "\u5C0F\u6CB3", emoji: "\u{1F3DE}\uFE0F", rewardKind: "lilyPad" },
+  { id: "zh_056", text: "\u6CB3", pinyin: "h\xE9", phrase: "\u5C0F\u6CB3", emoji: "\u{1F3DE}\uFE0F", rewardKind: "reed" },
   { id: "zh_057", text: "\u6821", pinyin: "xi\xE0o", phrase: "\u5B66\u6821", emoji: "\u{1F3EB}", rewardKind: "flower" },
   { id: "zh_058", text: "\u7247", pinyin: "pi\xE0n", phrase: "\u53F6\u7247", emoji: "\u{1F343}", rewardKind: "flower" },
   { id: "zh_059", text: "\u4E2A", pinyin: "g\xE8", phrase: "\u4E00\u4E2A\u82F9\u679C", emoji: "\u261D\uFE0F", rewardKind: "flower" },
-  { id: "zh_060", text: "\u6761", pinyin: "ti\xE1o", phrase: "\u4E00\u6761\u5927\u6CB3", emoji: "\u2796", rewardKind: "lilyPad" },
+  { id: "zh_060", text: "\u6761", pinyin: "ti\xE1o", phrase: "\u4E00\u6761\u5927\u6CB3", emoji: "\u2796", rewardKind: "reed" },
   { id: "zh_061", text: "\u6735", pinyin: "du\u01D2", phrase: "\u4E00\u6735\u82B1", emoji: "\u{1F33C}", rewardKind: "flower" },
   { id: "zh_062", text: "\u53F0", pinyin: "t\xE1i", phrase: "\u53F0\u706F", emoji: "\u{1FA91}", rewardKind: "flower" },
   { id: "zh_063", text: "\u7238", pinyin: "b\xE0", phrase: "\u7238\u7238", emoji: "\u{1F468}", rewardKind: "tree" },
@@ -27846,11 +27943,12 @@ var DEMO_WORDS = [
 
 // src/word-learning/WordLearningOverlay.ts
 var WordLearningOverlay = class {
-  constructor(root, learning, spawnReward, audio) {
+  constructor(root, learning, spawnReward, audio, viewRewards) {
     this.root = root;
     this.learning = learning;
     this.spawnReward = spawnReward;
     this.audio = audio;
+    this.viewRewards = viewRewards;
     this.dock = document.createElement("div");
     this.overlay = document.createElement("div");
     this.dock.dataset.gameUi = "true";
@@ -28117,8 +28215,13 @@ var WordLearningOverlay = class {
     );
     card.append(this.createCheckMark(this.rewardCount > 0), title, summary);
     if (this.rewardCount > 0) card.append(this.createRewardOrbList());
-    card.append(this.createPrimaryAction(this.rewardCount > 0 ? "\u53BB\u770B\u770B\u5956\u52B1" : "\u56DE\u5230\u573A\u666F", () => this.close()));
+    card.append(this.createPrimaryAction(this.rewardCount > 0 ? "\u53BB\u770B\u770B\u5956\u52B1" : "\u56DE\u5230\u573A\u666F", () => this.closeAfterDone()));
     this.overlay.append(card);
+  }
+  closeAfterDone() {
+    const shouldViewRewards = this.rewardCount > 0;
+    this.close();
+    if (shouldViewRewards) this.viewRewards?.();
   }
   createRewardOrbList() {
     const list = document.createElement("div");
@@ -28307,9 +28410,9 @@ var WordLearningSystem = class {
 };
 
 // src/word-learning/index.ts
-function mountWordLearningModule(root, spawnReward, initialState, onChange, audio) {
+function mountWordLearningModule(root, spawnReward, initialState, onChange, audio, viewRewards) {
   const learning = new WordLearningSystem(void 0, initialState, onChange);
-  return new WordLearningOverlay(root, learning, spawnReward, audio);
+  return new WordLearningOverlay(root, learning, spawnReward, audio, viewRewards);
 }
 
 // src/nature-recipe/NatureRecipeScene.ts
@@ -28680,61 +28783,57 @@ var NatureRecipeScene = class {
 
 // src/topiary-sculpture/config.ts
 var TOPIARY_SCULPTURE_ENABLED = true;
+var blobStroke = (centerX, centerY, radiusX, radiusY, rotation, steps = 44) => {
+  const points = [];
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  for (let i = 0; i <= steps; i++) {
+    const angle = i / steps * Math.PI * 2;
+    const scallop = 1 + Math.sin(i * 2.7) * 0.028 + Math.sin(i * 5.1) * 0.014;
+    const localX = Math.cos(angle) * radiusX * scallop;
+    const localY = Math.sin(angle) * radiusY * scallop;
+    points.push({
+      x: centerX + localX * cos - localY * sin,
+      y: centerY + localX * sin + localY * cos
+    });
+  }
+  return points;
+};
+var moundStroke = () => {
+  const points = [
+    { x: 0.25, y: 0.91 },
+    { x: 0.28, y: 0.84 },
+    { x: 0.38, y: 0.75 },
+    { x: 0.46, y: 0.61 },
+    { x: 0.49, y: 0.54 },
+    { x: 0.51, y: 0.54 },
+    { x: 0.54, y: 0.61 },
+    { x: 0.62, y: 0.75 },
+    { x: 0.72, y: 0.84 },
+    { x: 0.75, y: 0.91 }
+  ];
+  for (let i = 0; i <= 36; i++) {
+    const t = i / 36;
+    points.push({
+      x: 0.75 - t * 0.5,
+      y: 0.91 + Math.sin(i * 3.2) * 2e-3
+    });
+  }
+  points.push({ ...points[0] });
+  return points;
+};
 var TOPIARY_WINDMILL_STROKES = [
-  [
-    { x: 0.43, y: 0.9 },
-    { x: 0.47, y: 0.58 },
-    { x: 0.53, y: 0.58 },
-    { x: 0.58, y: 0.9 },
-    { x: 0.43, y: 0.9 }
-  ],
-  [
-    { x: 0.5, y: 0.43 },
-    { x: 0.79, y: 0.17 },
-    { x: 0.87, y: 0.27 },
-    { x: 0.56, y: 0.51 },
-    { x: 0.5, y: 0.43 }
-  ],
-  [
-    { x: 0.57, y: 0.5 },
-    { x: 0.84, y: 0.77 },
-    { x: 0.74, y: 0.86 },
-    { x: 0.49, y: 0.56 },
-    { x: 0.57, y: 0.5 }
-  ],
-  [
-    { x: 0.5, y: 0.57 },
-    { x: 0.21, y: 0.84 },
-    { x: 0.13, y: 0.73 },
-    { x: 0.44, y: 0.49 },
-    { x: 0.5, y: 0.57 }
-  ],
-  [
-    { x: 0.43, y: 0.5 },
-    { x: 0.17, y: 0.23 },
-    { x: 0.27, y: 0.14 },
-    { x: 0.51, y: 0.44 },
-    { x: 0.43, y: 0.5 }
-  ],
-  [
-    { x: 0.56, y: 0.5 },
-    { x: 0.54, y: 0.54 },
-    { x: 0.5, y: 0.56 },
-    { x: 0.46, y: 0.54 },
-    { x: 0.44, y: 0.5 },
-    { x: 0.46, y: 0.46 },
-    { x: 0.5, y: 0.44 },
-    { x: 0.54, y: 0.46 },
-    { x: 0.56, y: 0.5 }
-  ],
-  [
-    { x: 0.35, y: 0.9 },
-    { x: 0.66, y: 0.9 }
-  ]
+  blobStroke(0.29, 0.29, 0.2, 0.1, 0.66),
+  blobStroke(0.71, 0.29, 0.2, 0.1, -0.66),
+  blobStroke(0.3, 0.65, 0.18, 0.092, -0.62),
+  blobStroke(0.7, 0.65, 0.18, 0.092, 0.62),
+  moundStroke(),
+  blobStroke(0.5, 0.45, 0.066, 0.066, 0, 36)
 ];
 
 // src/topiary-sculpture/TopiarySculptureOverlay.ts
 var cloneStrokes = (strokes) => strokes.map((stroke) => stroke.map((point) => ({ ...point })));
+var TOPIARY_ENTRY_ICON_SRC = getRuntimeAssetUrl("assets/ui/topiary-entry-icon.png", "v=topiary-entry-icon-3");
 var TopiarySculptureOverlay = class {
   constructor(options) {
     this.options = options;
@@ -28779,14 +28878,7 @@ var TopiarySculptureOverlay = class {
     this.launch.title = "\u56ED\u827A\u96D5\u5851\u53F0";
     this.launch.innerHTML = `
       <span class="topiary-launch-icon" aria-hidden="true">
-        <span class="topiary-icon-blade topiary-icon-blade-a"></span>
-        <span class="topiary-icon-blade topiary-icon-blade-b"></span>
-        <span class="topiary-icon-blade topiary-icon-blade-c"></span>
-        <span class="topiary-icon-blade topiary-icon-blade-d"></span>
-        <span class="topiary-icon-hub"></span>
-        <span class="topiary-icon-tower"></span>
-        <span class="topiary-icon-base"></span>
-        <span class="topiary-icon-spark"></span>
+        <img class="topiary-launch-image" src="${TOPIARY_ENTRY_ICON_SRC}" alt="" draggable="false" />
       </span>
     `;
     this.launch.addEventListener("click", () => this.open());
@@ -28802,7 +28894,7 @@ var TopiarySculptureOverlay = class {
           <button type="button" data-new>\u65B0\u753B\u4F5C</button>
           <button type="button" data-sketch>\u753B\u677F</button>
           <button type="button" data-album>\u753B\u5939</button>
-          <button type="button" data-close>\u6536\u8D77</button>
+          <button class="topiary-close" type="button" data-close aria-label="\u5173\u95ED\u56ED\u827A\u96D5\u5851\u53F0">\xD7</button>
         </div>
       </div>
     `;
@@ -28981,6 +29073,7 @@ var TopiarySculptureOverlay = class {
     const rect = this.canvas.getBoundingClientRect();
     const width = rect.width || this.canvas.width;
     const height = rect.height || this.canvas.height;
+    const frame = this.getArtworkFrame(width, height);
     this.ctx.clearRect(0, 0, width, height);
     this.ctx.lineWidth = 8;
     this.ctx.lineCap = "round";
@@ -28988,9 +29081,7 @@ var TopiarySculptureOverlay = class {
     this.ctx.strokeStyle = "#3f7544";
     this.strokes.forEach((stroke) => {
       if (stroke.length === 0) return;
-      this.ctx.beginPath();
-      this.ctx.moveTo(stroke[0].x * width, stroke[0].y * height);
-      stroke.slice(1).forEach((point) => this.ctx.lineTo(point.x * width, point.y * height));
+      this.drawStrokePath(this.ctx, stroke, frame.x, frame.y, frame.size, frame.size);
       this.ctx.stroke();
     });
     this.panel.querySelector(".topiary-pad-hint")?.classList.toggle("is-hidden", this.strokes.flat().length > 0);
@@ -29004,13 +29095,68 @@ var TopiarySculptureOverlay = class {
     ctx.lineWidth = 7;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
+    const frame = this.getArtworkFrame(canvas.width, canvas.height);
     strokes.forEach((stroke) => {
       if (stroke.length === 0) return;
-      ctx.beginPath();
-      ctx.moveTo(stroke[0].x * canvas.width, stroke[0].y * canvas.height);
-      stroke.slice(1).forEach((point) => ctx.lineTo(point.x * canvas.width, point.y * canvas.height));
+      this.drawStrokePath(ctx, stroke, frame.x, frame.y, frame.size, frame.size);
       ctx.stroke();
     });
+  }
+  drawStrokePath(ctx, stroke, offsetX, offsetY, width, height) {
+    ctx.beginPath();
+    if (stroke.length < 3) {
+      ctx.moveTo(offsetX + stroke[0].x * width, offsetY + stroke[0].y * height);
+      stroke.slice(1).forEach((point) => ctx.lineTo(offsetX + point.x * width, offsetY + point.y * height));
+      return;
+    }
+    const closed = this.intentDistance(stroke[0], stroke[stroke.length - 1]) < 0.01;
+    const points = closed ? stroke.slice(0, -1) : stroke;
+    if (closed && points.length > 24) {
+      ctx.moveTo(offsetX + points[0].x * width, offsetY + points[0].y * height);
+      points.slice(1).forEach((point) => ctx.lineTo(offsetX + point.x * width, offsetY + point.y * height));
+      ctx.closePath();
+      return;
+    }
+    if (closed) {
+      const first = points[0];
+      const last2 = points[points.length - 1];
+      ctx.moveTo(offsetX + (last2.x + first.x) / 2 * width, offsetY + (last2.y + first.y) / 2 * height);
+      points.forEach((point, index) => {
+        const next = points[(index + 1) % points.length];
+        ctx.quadraticCurveTo(
+          offsetX + point.x * width,
+          offsetY + point.y * height,
+          offsetX + (point.x + next.x) / 2 * width,
+          offsetY + (point.y + next.y) / 2 * height
+        );
+      });
+      ctx.closePath();
+      return;
+    }
+    ctx.moveTo(offsetX + points[0].x * width, offsetY + points[0].y * height);
+    for (let i = 1; i < points.length - 1; i++) {
+      const point = points[i];
+      const next = points[i + 1];
+      ctx.quadraticCurveTo(
+        offsetX + point.x * width,
+        offsetY + point.y * height,
+        offsetX + (point.x + next.x) / 2 * width,
+        offsetY + (point.y + next.y) / 2 * height
+      );
+    }
+    const last = points[points.length - 1];
+    ctx.lineTo(offsetX + last.x * width, offsetY + last.y * height);
+  }
+  getArtworkFrame(width, height) {
+    const size = Math.min(width, height);
+    return {
+      x: (width - size) / 2,
+      y: (height - size) / 2,
+      size
+    };
+  }
+  intentDistance(a, b) {
+    return Math.hypot(a.x - b.x, a.y - b.y);
   }
   onPointerDown = (event) => {
     this.playDrawSound();
@@ -29036,9 +29182,10 @@ var TopiarySculptureOverlay = class {
   }
   pointFromEvent(event) {
     const rect = this.canvas.getBoundingClientRect();
+    const frame = this.getArtworkFrame(rect.width, rect.height);
     return {
-      x: Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)),
-      y: Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height))
+      x: Math.min(1, Math.max(0, (event.clientX - rect.left - frame.x) / frame.size)),
+      y: Math.min(1, Math.max(0, (event.clientY - rect.top - frame.y) / frame.size))
     };
   }
   loadSampleWindmill() {
@@ -29560,6 +29707,1674 @@ function mountTopiarySculptureModule(options) {
     },
     dispose() {
       sculptureScene.dispose();
+    }
+  };
+}
+
+// src/word-brick-tower/config.ts
+var WORD_BRICK_TOWER_ENABLED = true;
+var WORD_BRICK_TOWER_PREVIEW_BUILD_RATIO = 0.3;
+var WORD_BRICK_TOWER_PREVIEW_SCALE = 0.72;
+var WORD_BRICK_TOWER_FOCUS_HEIGHT_OFFSET = 8;
+var WORD_BRICK_TOWER_FOCUS_VIEW_DISTANCE = 390;
+var WORD_BRICK_TOWER_FOCUS_SCREEN_OFFSET_X = 330;
+var WORD_BRICK_TOWER_POSITION = {
+  x: 260,
+  z: 380
+};
+var WORD_BRICK_TOWER_COLORS = [
+  { id: "clay", fill: "#d98761" },
+  { id: "sun", fill: "#e2bd68" },
+  { id: "moss", fill: "#87ad73" },
+  { id: "lake", fill: "#78afbd" },
+  { id: "stone", fill: "#e5dec8" },
+  { id: "leaf", fill: "#73ad95" },
+  { id: "rose", fill: "#d99891" },
+  { id: "violet", fill: "#b9a5c8" }
+];
+var WORD_BRICK_TOWER_DEFAULT_COLOR = WORD_BRICK_TOWER_COLORS[1];
+var WORD_BRICK_TOWER_FIXED_DAILY_PACKS = [
+  [
+    {
+      title: "\u81EA\u7136\u8BCD\u7816",
+      chars: ["\u5C71", "\u6C34", "\u82B1", "\u9E1F", "\u5927", "\u5C0F", "\u767D", "\u4E91"],
+      words: ["\u5C71\u6C34", "\u82B1\u9E1F", "\u5927\u5C71", "\u767D\u4E91", "\u5C0F\u9E1F", "\u5C0F\u82B1"]
+    },
+    {
+      title: "\u5929\u5730\u8BCD\u7816",
+      chars: ["\u4E0A", "\u4E0B", "\u5929", "\u5730", "\u65E5", "\u6708", "\u96E8", "\u6C34"],
+      words: ["\u4E0A\u4E0B", "\u5929\u5730", "\u65E5\u6708", "\u96E8\u6C34", "\u4E0B\u96E8"]
+    },
+    {
+      title: "\u52A8\u7269\u8BCD\u7816",
+      chars: ["\u725B", "\u7F8A", "\u5C0F", "\u9C7C", "\u9A6C", "\u8F66", "\u98DE", "\u9E1F"],
+      words: ["\u725B\u7F8A", "\u5C0F\u9C7C", "\u9A6C\u8F66", "\u98DE\u9E1F"]
+    }
+  ],
+  [
+    {
+      title: "\u6821\u56ED\u8BCD\u7816",
+      chars: ["\u5B66", "\u6821", "\u8001", "\u5E08", "\u8BFB", "\u4E66", "\u670B", "\u53CB"],
+      words: ["\u5B66\u6821", "\u8001\u5E08", "\u8BFB\u4E66", "\u670B\u53CB", "\u6821\u53CB"]
+    },
+    {
+      title: "\u5BB6\u4EBA\u8BCD\u7816",
+      chars: ["\u7238", "\u5988", "\u7236", "\u6BCD", "\u4EB2", "\u4EBA", "\u5168", "\u5BB6"],
+      words: ["\u7238\u5988", "\u7236\u6BCD", "\u4EB2\u4EBA", "\u5168\u5BB6"]
+    },
+    {
+      title: "\u51FA\u5165\u8BCD\u7816",
+      chars: ["\u6765", "\u53BB", "\u51FA", "\u5165", "\u53E3", "\u95E8", "\u4E0A", "\u4E0B"],
+      words: ["\u6765\u53BB", "\u51FA\u5165", "\u5165\u53E3", "\u51FA\u95E8", "\u4E0A\u4E0B"]
+    }
+  ],
+  [
+    {
+      title: "\u989C\u8272\u8BCD\u7816",
+      chars: ["\u7EA2", "\u7EFF", "\u82B1", "\u53F6", "\u767D", "\u4E91", "\u8272", "\u8349"],
+      words: ["\u7EA2\u82B1", "\u7EFF\u53F6", "\u767D\u4E91", "\u82B1\u8349", "\u7EFF\u8272"]
+    },
+    {
+      title: "\u5929\u6C14\u8BCD\u7816",
+      chars: ["\u6625", "\u98CE", "\u96E8", "\u96EA", "\u592A", "\u9633", "\u5929", "\u6C14"],
+      words: ["\u6625\u98CE", "\u96E8\u96EA", "\u592A\u9633", "\u5929\u6C14", "\u98CE\u96E8"]
+    },
+    {
+      title: "\u58F0\u97F3\u8BCD\u7816",
+      chars: ["\u53E3", "\u95E8", "\u8033", "\u76EE", "\u58F0", "\u97F3", "\u8BF4", "\u8BDD"],
+      words: ["\u95E8\u53E3", "\u8033\u76EE", "\u58F0\u97F3", "\u8BF4\u8BDD"]
+    }
+  ],
+  [
+    {
+      title: "\u8FD0\u52A8\u8BCD\u7816",
+      chars: ["\u6253", "\u7403", "\u8DD1", "\u8DF3", "\u9AD8", "\u8FDC", "\u8FD1", "\u5904"],
+      words: ["\u6253\u7403", "\u8DD1\u8DF3", "\u8DF3\u9AD8", "\u8FDC\u8FD1", "\u8FD1\u5904"]
+    },
+    {
+      title: "\u5B66\u4E60\u8BCD\u7816",
+      chars: ["\u5199", "\u5B57", "\u770B", "\u4E66", "\u7535", "\u8BDD", "\u8001", "\u5E08"],
+      words: ["\u5199\u5B57", "\u770B\u4E66", "\u7535\u8BDD", "\u8001\u5E08"]
+    },
+    {
+      title: "\u65E9\u665A\u8BCD\u7816",
+      chars: ["\u4EE5", "\u540E", "\u660E", "\u5929", "\u4ECA", "\u5E74", "\u65E9", "\u4E0A"],
+      words: ["\u4EE5\u540E", "\u660E\u5929", "\u4ECA\u5E74", "\u65E9\u4E0A"]
+    }
+  ],
+  [
+    {
+      title: "\u670B\u53CB\u8BCD\u7816",
+      chars: ["\u6211", "\u4EEC", "\u4F60", "\u4ED6", "\u670B", "\u53CB", "\u548C", "\u597D"],
+      words: ["\u6211\u4EEC", "\u4ED6\u4EEC", "\u670B\u53CB", "\u548C\u597D", "\u4F60\u597D"]
+    },
+    {
+      title: "\u7530\u56ED\u8BCD\u7816",
+      chars: ["\u5927", "\u7C73", "\u7AF9", "\u6728", "\u7530", "\u5730", "\u571F", "\u6C34"],
+      words: ["\u5927\u7C73", "\u7AF9\u6728", "\u7530\u5730", "\u571F\u5730", "\u6C34\u7530"]
+    },
+    {
+      title: "\u5BB6\u4E61\u8BCD\u7816",
+      chars: ["\u5BB6", "\u4E61", "\u623F", "\u5C4B", "\u5C0F", "\u5E8A", "\u6CB3", "\u6C34"],
+      words: ["\u5BB6\u4E61", "\u623F\u5C4B", "\u5C0F\u5E8A", "\u6CB3\u6C34"]
+    }
+  ],
+  [
+    {
+      title: "\u8BFE\u5802\u8BCD\u7816",
+      chars: ["\u540C", "\u5B66", "\u5E74", "\u7EA7", "\u53E4", "\u8BD7", "\u8BED", "\u6587"],
+      words: ["\u540C\u5B66", "\u5E74\u7EA7", "\u53E4\u8BD7", "\u8BED\u6587"]
+    },
+    {
+      title: "\u6574\u7406\u8BCD\u7816",
+      chars: ["\u626B", "\u5730", "\u5E72", "\u51C0", "\u5173", "\u95E8", "\u6536", "\u597D"],
+      words: ["\u626B\u5730", "\u5E72\u51C0", "\u5173\u95E8", "\u6536\u597D"]
+    },
+    {
+      title: "\u884C\u52A8\u8BCD\u7816",
+      chars: ["\u542C", "\u8BDD", "\u501F", "\u4E66", "\u653E", "\u5B66", "\u8DDF", "\u7740"],
+      words: ["\u542C\u8BDD", "\u501F\u4E66", "\u653E\u5B66", "\u8DDF\u7740"]
+    }
+  ],
+  [
+    {
+      title: "\u5FC3\u60C5\u8BCD\u7816",
+      chars: ["\u7F8E", "\u4E3D", "\u9AD8", "\u5174", "\u5F88", "\u597D", "\u771F", "\u8FDC"],
+      words: ["\u7F8E\u4E3D", "\u9AD8\u5174", "\u5F88\u597D", "\u771F\u597D", "\u9AD8\u8FDC"]
+    },
+    {
+      title: "\u5F62\u72B6\u8BCD\u7816",
+      chars: ["\u5706", "\u5F62", "\u7A97", "\u6237", "\u7ACB", "\u6B63", "\u5173", "\u95ED"],
+      words: ["\u5706\u5F62", "\u7A97\u6237", "\u7ACB\u6B63", "\u5173\u95ED"]
+    },
+    {
+      title: "\u751F\u6D3B\u8BCD\u7816",
+      chars: ["\u98DE", "\u673A", "\u65F6", "\u95F4", "\u7A7F", "\u8863", "\u6E29", "\u6696"],
+      words: ["\u98DE\u673A", "\u65F6\u95F4", "\u7A7F\u8863", "\u6E29\u6696"]
+    }
+  ]
+];
+var WORD_BRICK_TOWER_ROUNDS = WORD_BRICK_TOWER_FIXED_DAILY_PACKS[0];
+var WORD_BRICK_TOWER_DYNAMIC_WORDS = [
+  "\u4E0A\u5C71",
+  "\u4E0A\u8F66",
+  "\u4E0A\u95E8",
+  "\u4E0A\u5B66",
+  "\u4E0B\u5C71",
+  "\u4E0B\u6C34",
+  "\u4E0B\u8F66",
+  "\u4E0B\u96E8",
+  "\u5165\u53E3",
+  "\u51FA\u53E3",
+  "\u95E8\u53E3",
+  "\u5927\u95E8",
+  "\u65E5\u6708",
+  "\u6708\u513F",
+  "\u6708\u4EAE",
+  "\u706B\u5C71",
+  "\u6728\u9A6C",
+  "\u5C71\u6C34",
+  "\u5927\u5C71",
+  "\u5C0F\u5C71",
+  "\u5C71\u7F8A",
+  "\u5C71\u5730",
+  "\u96E8\u6C34",
+  "\u7530\u5730",
+  "\u5927\u4EBA",
+  "\u5C0F\u4EBA",
+  "\u5927\u8F66",
+  "\u5C0F\u8F66",
+  "\u5927\u5C0F",
+  "\u591A\u5C11",
+  "\u5929\u5730",
+  "\u571F\u5730",
+  "\u571F\u5C71",
+  "\u5927\u7C73",
+  "\u5C0F\u7C73",
+  "\u5C0F\u7F8A",
+  "\u5C0F\u9E1F",
+  "\u5C0F\u5154",
+  "\u5C0F\u725B",
+  "\u5C0F\u9C7C",
+  "\u5C0F\u9A6C",
+  "\u5C0F\u82B1",
+  "\u82B1\u8349",
+  "\u98DE\u9E1F",
+  "\u51FA\u6765",
+  "\u51FA\u53BB",
+  "\u6765\u53BB",
+  "\u8BFB\u4E66",
+  "\u5C0F\u6CB3",
+  "\u5927\u6CB3",
+  "\u6CB3\u6C34",
+  "\u5B66\u6821",
+  "\u6821\u95E8",
+  "\u6821\u53CB",
+  "\u767D\u4E91",
+  "\u8001\u5E08",
+  "\u6253\u7403",
+  "\u5C0F\u7403",
+  "\u8DD1\u6B65",
+  "\u8DF3\u9AD8",
+  "\u9AD8\u5C71",
+  "\u771F\u597D",
+  "\u8FD1\u5904",
+  "\u8FDC\u5904",
+  "\u989C\u8272",
+  "\u58F0\u97F3",
+  "\u6625\u5929",
+  "\u8FD8\u6709",
+  "\u65E0\u58F0",
+  "\u8FC7\u5E74",
+  "\u4ECA\u5929",
+  "\u5C0F\u6865",
+  "\u8BF4\u8BDD",
+  "\u7535\u8BDD",
+  "\u670B\u53CB",
+  "\u9AD8\u5174",
+  "\u6211\u4EEC",
+  "\u4F60\u4EEC",
+  "\u4ED6\u4EEC",
+  "\u5979\u4EEC",
+  "\u4E0D\u8981",
+  "\u4E5F\u6709",
+  "\u597D\u4E86",
+  "\u5728\u5BB6",
+  "\u6211\u548C",
+  "\u4F60\u597D",
+  "\u7EA2\u82B1",
+  "\u7EFF\u53F6",
+  "\u53F6\u7247",
+  "\u8282\u65E5",
+  "\u4EB2\u4EBA",
+  "\u7236\u4EB2",
+  "\u6BCD\u4EB2",
+  "\u5168\u5BB6",
+  "\u5173\u95E8",
+  "\u5199\u5B57",
+  "\u5B8C\u6210",
+  "\u770B\u4E66",
+  "\u770B\u7740",
+  "\u5408\u4E0A",
+  "\u653E\u5B66",
+  "\u6536\u597D",
+  "\u5973\u5B69",
+  "\u592A\u9633",
+  "\u5929\u6C14",
+  "\u65E9\u4E0A",
+  "\u660E\u4EAE",
+  "\u8BED\u6587",
+  "\u542C\u89C1",
+  "\u5531\u6B4C",
+  "\u8FDC\u65B9",
+  "\u4E00\u5B9A",
+  "\u65B9\u5411",
+  "\u4EE5\u540E",
+  "\u540E\u6765",
+  "\u66F4\u597D",
+  "\u4E3B\u610F",
+  "\u5148\u540E",
+  "\u5E72\u51C0",
+  "\u8D77\u6765",
+  "\u660E\u5929",
+  "\u540C\u5B66",
+  "\u5DE5\u4EBA",
+  "\u5E74\u7EA7",
+  "\u5929\u7A7A",
+  "\u623F\u5B50",
+  "\u53E4\u8BD7",
+  "\u6811\u6797",
+  "\u513F\u7AE5",
+  "\u9EC4\u8272",
+  "\u5173\u95ED",
+  "\u7ACB\u6B63",
+  "\u662F\u7684",
+  "\u7F8E\u4E3D",
+  "\u98DE\u673A",
+  "\u65F6\u95F4",
+  "\u8BA9\u5F00",
+  "\u5F88\u597D",
+  "\u501F\u4E66",
+  "\u8DDF\u7740",
+  "\u51C9\u6C34",
+  "\u6700\u597D",
+  "\u590F\u5929",
+  "\u79CB\u5929",
+  "\u4E0B\u96EA",
+  "\u5706\u5F62",
+  "\u7A97\u6237",
+  "\u5C4B\u5B50",
+  "\u7A7F\u8863",
+  "\u6E29\u6696",
+  "\u51B7\u6C34",
+  "\u5C0F\u5E8A",
+  "\u5BB6\u4E61"
+];
+
+// src/word-brick-tower/dailyContent.ts
+var ROUNDS_PER_DAY = 3;
+var CHARS_PER_ROUND = 8;
+var MIN_WORDS_PER_ROUND = 4;
+var MAX_SEARCH_WORDS = 84;
+var MAX_SEARCH_NODES = 12e3;
+var MAX_CHAR_USAGE_PER_ROUND = 2;
+var EXCLUDED_WORD_BRICK_CHARS = /* @__PURE__ */ new Set(["\u4E00", "\u4E8C", "\u4E09", "\u56DB", "\u4E94", "\u516D", "\u4E03", "\u516B", "\u4E5D", "\u5341", "\u767E", "\u5343", "\u4E07"]);
+var cloneRound = (round) => ({
+  title: round.title,
+  chars: [...round.chars],
+  words: [...round.words]
+});
+var clonePack = (rounds) => rounds.map(cloneRound);
+var hashText = (text) => {
+  let hash = 2166136261;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+};
+var seededValue = (seed) => hashText(seed) / 4294967295;
+var stableShuffle = (items, seed) => [...items].sort((a, b) => seededValue(`${seed}:${String(a)}`) - seededValue(`${seed}:${String(b)}`));
+var unique = (items) => [...new Set(items)];
+var hasExcludedWordBrickChar = (text) => Array.from(text).some((char) => EXCLUDED_WORD_BRICK_CHARS.has(char));
+var isWordBrickTowerRoundPlayable = (round) => {
+  const chars = Array.from(new Set(round.chars));
+  if (chars.length !== CHARS_PER_ROUND) return false;
+  if (chars.some((char) => Array.from(char).length !== 1 || hasExcludedWordBrickChar(char))) return false;
+  const charSet = new Set(chars);
+  const coveredChars = /* @__PURE__ */ new Set();
+  const charUsage = /* @__PURE__ */ new Map();
+  const validWords = unique(round.words).filter((word) => {
+    const wordChars = Array.from(word);
+    if (wordChars.length !== 2 || wordChars[0] === wordChars[1] || hasExcludedWordBrickChar(word)) return false;
+    return wordChars.every((char) => charSet.has(char));
+  });
+  for (const word of validWords) {
+    for (const char of Array.from(word)) {
+      coveredChars.add(char);
+      charUsage.set(char, (charUsage.get(char) ?? 0) + 1);
+    }
+  }
+  return validWords.length >= MIN_WORDS_PER_ROUND && coveredChars.size === CHARS_PER_ROUND && [...charUsage.values()].every((count) => count <= MAX_CHAR_USAGE_PER_ROUND);
+};
+var getStudiedCharacterOrder = (learning) => {
+  const byId = new Map(DEMO_WORDS.map((word) => [word.id, word.text]));
+  const orderedIds = [...learning.learnedWordIds, ...learning.reviewWordIds];
+  const chars = [];
+  for (const id of orderedIds) {
+    const char = byId.get(id);
+    if (char && Array.from(char).length === 1 && !chars.includes(char)) chars.push(char);
+  }
+  return chars;
+};
+var getWordPool = () => {
+  const phrases = DEMO_WORDS.map((word) => word.phrase).filter((phrase) => typeof phrase === "string" && Array.from(phrase).length === 2);
+  return unique([...WORD_BRICK_TOWER_DYNAMIC_WORDS, ...phrases]).filter((word) => Array.from(word).length === 2 && !hasExcludedWordBrickChar(word));
+};
+var getWordBrickTowerAcceptedWords = (round) => {
+  const charSet = new Set(round.chars);
+  return unique([...round.words, ...getWordPool()]).filter((word) => {
+    const chars = Array.from(word);
+    return chars.length === 2 && chars[0] !== chars[1] && !hasExcludedWordBrickChar(word) && chars.every((char) => charSet.has(char));
+  });
+};
+var getCandidates = (studiedChars) => {
+  const rankByChar = new Map(studiedChars.map((char, index) => [char, index]));
+  return getWordPool().map((word) => {
+    const chars = Array.from(word);
+    const firstRank = rankByChar.get(chars[0]);
+    const secondRank = rankByChar.get(chars[1]);
+    if (firstRank === void 0 || secondRank === void 0 || chars[0] === chars[1]) return null;
+    return {
+      word,
+      chars: [chars[0], chars[1]],
+      minRank: Math.min(firstRank, secondRank),
+      maxRank: Math.max(firstRank, secondRank)
+    };
+  }).filter((candidate) => candidate !== null);
+};
+var countAdjacentAnswerPairs = (chars, words) => {
+  let count = 0;
+  for (let index = 0; index < chars.length - 1; index += 1) {
+    const pair = `${chars[index]}${chars[index + 1]}`;
+    const reverse = `${chars[index + 1]}${chars[index]}`;
+    if (words.includes(pair) || words.includes(reverse)) count += 1;
+  }
+  return count;
+};
+var spreadChars = (chars, words, seed) => {
+  let best = chars;
+  let bestScore = Number.POSITIVE_INFINITY;
+  for (let attempt = 0; attempt < 16; attempt += 1) {
+    const shuffled = stableShuffle(chars, `${seed}:${attempt}`);
+    const score = countAdjacentAnswerPairs(shuffled, words);
+    if (score < bestScore) {
+      best = shuffled;
+      bestScore = score;
+      if (score === 0) break;
+    }
+  }
+  return best;
+};
+var searchRound = (pool) => {
+  let visited = 0;
+  const dfs = (startIndex, selected, charSet) => {
+    visited += 1;
+    if (visited > MAX_SEARCH_NODES) return null;
+    if (charSet.size === CHARS_PER_ROUND && selected.length === MIN_WORDS_PER_ROUND) return selected;
+    if (selected.length >= MIN_WORDS_PER_ROUND || charSet.size > CHARS_PER_ROUND) return null;
+    if (charSet.size + (MIN_WORDS_PER_ROUND - selected.length) * 2 < CHARS_PER_ROUND) return null;
+    for (let index = startIndex; index < pool.length; index += 1) {
+      const candidate = pool[index];
+      if (candidate.chars.some((char) => charSet.has(char))) continue;
+      const nextChars = new Set(charSet);
+      candidate.chars.forEach((char) => nextChars.add(char));
+      const result = dfs(index + 1, [...selected, candidate], nextChars);
+      if (result) return result;
+    }
+    return null;
+  };
+  return dfs(0, [], /* @__PURE__ */ new Set());
+};
+var getRoundWords = (selected, candidates, charSet, seed) => {
+  const words = [];
+  const charUsage = /* @__PURE__ */ new Map();
+  const addWord = (candidate) => {
+    if (words.includes(candidate.word)) return false;
+    if (!candidate.chars.every((char) => charSet.has(char))) return false;
+    if (candidate.chars.some((char) => (charUsage.get(char) ?? 0) >= MAX_CHAR_USAGE_PER_ROUND)) return false;
+    words.push(candidate.word);
+    candidate.chars.forEach((char) => charUsage.set(char, (charUsage.get(char) ?? 0) + 1));
+    return true;
+  };
+  selected.forEach(addWord);
+  stableShuffle(candidates, `${seed}:extra`).filter((candidate) => !selected.some((item) => item.word === candidate.word)).forEach(addWord);
+  return words;
+};
+var createDynamicRound = (candidates, focusRank, usedDailyChars, usedDailyWords, seed) => {
+  const score = (candidate) => {
+    const reusedCharPenalty = candidate.chars.some((char) => usedDailyChars.has(char)) ? 1e4 : 0;
+    const usedWordPenalty = usedDailyWords.has(candidate.word) ? 1e5 : 0;
+    const distance = Math.abs(candidate.maxRank - focusRank);
+    return usedWordPenalty + reusedCharPenalty + distance * 100 + candidate.maxRank * 2 + candidate.minRank;
+  };
+  const sorted = [...candidates].sort((a, b) => {
+    const delta = score(a) - score(b);
+    return delta !== 0 ? delta : seededValue(`${seed}:${a.word}`) - seededValue(`${seed}:${b.word}`);
+  });
+  const freshPool = sorted.filter((candidate) => !candidate.chars.some((char) => usedDailyChars.has(char))).slice(0, MAX_SEARCH_WORDS);
+  const selected = searchRound(freshPool) ?? searchRound(sorted.slice(0, MAX_SEARCH_WORDS));
+  if (!selected) return null;
+  const charSet = /* @__PURE__ */ new Set();
+  selected.forEach((candidate) => candidate.chars.forEach((char) => charSet.add(char)));
+  if (charSet.size !== CHARS_PER_ROUND) return null;
+  const chars = [...charSet];
+  const words = getRoundWords(selected, candidates, charSet, seed);
+  if (words.length < MIN_WORDS_PER_ROUND) return null;
+  return {
+    title: "\u719F\u5B57\u8BCD\u7816",
+    chars: spreadChars(chars, words, seed),
+    words: unique(words)
+  };
+};
+var createDynamicRounds = (studiedChars, dayIndex, dayKey) => {
+  const eligibleChars = studiedChars.filter((char) => !hasExcludedWordBrickChar(char));
+  const candidates = getCandidates(eligibleChars);
+  if (candidates.length < MIN_WORDS_PER_ROUND * ROUNDS_PER_DAY) return null;
+  const dynamicDayIndex = Math.max(0, dayIndex - WORD_BRICK_TOWER_FIXED_DAILY_PACKS.length);
+  const usedDailyChars = /* @__PURE__ */ new Set();
+  const usedDailyWords = /* @__PURE__ */ new Set();
+  const rounds = [];
+  for (let roundIndex = 0; roundIndex < ROUNDS_PER_DAY; roundIndex += 1) {
+    const focusRank = Math.min(eligibleChars.length - 1, dynamicDayIndex * CHARS_PER_ROUND * ROUNDS_PER_DAY + roundIndex * CHARS_PER_ROUND);
+    const round = createDynamicRound(candidates, focusRank, usedDailyChars, usedDailyWords, `${dayKey}:${dayIndex}:${roundIndex}`);
+    if (!round) return null;
+    round.chars.forEach((char) => usedDailyChars.add(char));
+    round.words.forEach((word) => usedDailyWords.add(word));
+    rounds.push(round);
+  }
+  return rounds;
+};
+var createWordBrickTowerDailyRounds = (dayIndex, dayKey, learning) => {
+  if (dayIndex < WORD_BRICK_TOWER_FIXED_DAILY_PACKS.length) {
+    return clonePack(WORD_BRICK_TOWER_FIXED_DAILY_PACKS[dayIndex]);
+  }
+  const dynamicRounds = createDynamicRounds(getStudiedCharacterOrder(learning), dayIndex, dayKey);
+  return dynamicRounds ?? clonePack(WORD_BRICK_TOWER_FIXED_DAILY_PACKS[0]);
+};
+
+// src/word-brick-tower/types.ts
+var createWordBrickTowerDayKey = (date = /* @__PURE__ */ new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+var createInitialWordBrickTowerState = () => ({
+  dayKey: createWordBrickTowerDayKey(),
+  dayIndex: 0,
+  rounds: [],
+  roundIndex: 0,
+  workCollapsed: false,
+  builtBrickCount: 0,
+  bricks: [],
+  roundProgress: []
+});
+
+// src/word-brick-tower/WordBrickTowerOverlay.ts
+var cloneProgress = (progress) => ({
+  usedChars: [...progress.usedChars],
+  foundWords: [...progress.foundWords]
+});
+var cloneRound2 = (round) => ({
+  title: round.title,
+  chars: [...round.chars],
+  words: [...round.words]
+});
+var WORD_BRICK_ENTRY_ICON_SRC = getRuntimeAssetUrl("assets/ui/word-brick-entry-icon.svg", "v=word-brick-entry-icon-3");
+var WordBrickTowerOverlay = class {
+  constructor(options) {
+    this.options = options;
+    this.state = this.cloneState(options.initialState);
+    this.ensureRoundProgress();
+    this.repairCollapsedState();
+    this.refreshForTodayIfNeeded();
+    this.mount();
+    this.syncScene();
+  }
+  launch = document.createElement("button");
+  panel = document.createElement("section");
+  roundPill = document.createElement("span");
+  workCard = document.createElement("section");
+  colorCard = document.createElement("section");
+  roundTitle = document.createElement("h3");
+  slotA = document.createElement("button");
+  slotB = document.createElement("button");
+  wordBank = document.createElement("div");
+  message = document.createElement("div");
+  nextButton = document.createElement("button");
+  colorTitle = document.createElement("h3");
+  colorCopy = document.createElement("p");
+  colorPill = document.createElement("span");
+  completeNote = document.createElement("div");
+  pendingList = document.createElement("div");
+  swatches = document.createElement("div");
+  buildButton = document.createElement("button");
+  roundCompleteFeedback = document.createElement("div");
+  state;
+  selected = [];
+  activeBrickIndex = null;
+  slotFeedback = null;
+  animating = false;
+  roundCompleteFeedbackTimer = null;
+  open() {
+    this.options.audio?.play("uiPanelOpen");
+    this.refreshForTodayIfNeeded();
+    this.repairCollapsedState();
+    this.panel.hidden = false;
+    this.panel.dataset.gameModal = "true";
+    this.render();
+  }
+  close() {
+    this.options.audio?.play("uiPanelClose");
+    this.panel.hidden = true;
+    delete this.panel.dataset.gameModal;
+  }
+  dispose() {
+    if (this.roundCompleteFeedbackTimer !== null) window.clearTimeout(this.roundCompleteFeedbackTimer);
+    this.launch.remove();
+    this.panel.remove();
+  }
+  mount() {
+    this.launch.className = "word-brick-launch";
+    this.launch.dataset.gameUi = "true";
+    this.launch.type = "button";
+    this.launch.title = "\u5B57\u7B51\u5854";
+    this.launch.setAttribute("aria-label", "\u5B57\u7B51\u5854");
+    this.launch.innerHTML = `<span class="word-brick-launch-icon" aria-hidden="true"><img class="word-brick-launch-image" src="${WORD_BRICK_ENTRY_ICON_SRC}" alt="" draggable="false" /></span>`;
+    this.launch.addEventListener("click", () => {
+      this.options.focusScene();
+      this.open();
+    });
+    this.panel.className = "word-brick-panel";
+    this.panel.dataset.gameUi = "true";
+    this.panel.hidden = true;
+    this.panel.append(this.createHeader(), this.createWorkCard(), this.createColorCard());
+    this.roundCompleteFeedback.className = "word-brick-round-complete-feedback";
+    this.roundCompleteFeedback.textContent = "\u606D\u559C\u5B8C\u6210\uFF01";
+    this.roundCompleteFeedback.hidden = true;
+    this.panel.append(this.roundCompleteFeedback);
+    this.options.root.append(this.launch, this.panel);
+    this.render();
+  }
+  createHeader() {
+    const header = document.createElement("div");
+    header.className = "word-brick-head";
+    const titleGroup = document.createElement("div");
+    const title = document.createElement("h2");
+    title.textContent = "\u6BCF\u65E5\u5B57\u7B51";
+    const copy = document.createElement("p");
+    copy.textContent = "\u7528\u8BA4\u8BC6\u7684\u5B57\u7EC4\u8BCD\u3002\u65B0\u8BCD\u7816\u4F1A\u5148\u5728\u5854\u4E0A\u534A\u900F\u660E\u9884\u89C8\uFF0C\u70B9\u51FB\u5F00\u59CB\u5EFA\u9020\u540E\u53D8\u6210\u771F\u6B63\u7684\u5854\u7816\u3002";
+    titleGroup.append(title, copy);
+    const tools = document.createElement("div");
+    tools.className = "word-brick-tools";
+    this.roundPill.className = "word-brick-pill";
+    const close = document.createElement("button");
+    close.type = "button";
+    close.textContent = "\xD7";
+    close.setAttribute("aria-label", "\u5173\u95ED\u6BCF\u65E5\u5B57\u7B51");
+    close.addEventListener("click", () => this.close());
+    tools.append(this.roundPill, close);
+    header.append(titleGroup, tools);
+    return header;
+  }
+  createWorkCard() {
+    this.workCard.className = "word-brick-card word-brick-work";
+    const head = document.createElement("div");
+    head.className = "word-brick-round-head";
+    const titleGroup = document.createElement("div");
+    const copy = document.createElement("p");
+    copy.textContent = "\u70B9\u51FB\u4E24\u4E2A\u5B57\u7EC4\u6210\u8BCD\u3002\u6BCF\u4E2A\u5B57\u81F3\u5C11\u7528\u8FC7\u4E00\u6B21\uFF0C\u672C\u8F6E\u5C31\u5B8C\u6210\u3002";
+    titleGroup.append(this.roundTitle, copy);
+    const mode = document.createElement("span");
+    mode.className = "word-brick-pill";
+    mode.textContent = "\u7528\u5B8C\u5B57\u5361";
+    head.append(titleGroup, mode);
+    const slots = document.createElement("div");
+    slots.className = "word-brick-slots";
+    this.slotA.className = "word-brick-slot";
+    this.slotA.type = "button";
+    this.slotA.addEventListener("click", () => this.clearSlot(0));
+    this.slotB.className = "word-brick-slot";
+    this.slotB.type = "button";
+    this.slotB.addEventListener("click", () => this.clearSlot(1));
+    const plus = document.createElement("div");
+    plus.className = "word-brick-plus";
+    plus.textContent = "+";
+    slots.append(this.slotA, plus, this.slotB);
+    this.wordBank.className = "word-brick-bank";
+    this.message.className = "word-brick-message";
+    this.nextButton.type = "button";
+    this.nextButton.className = "word-brick-primary";
+    this.nextButton.addEventListener("click", () => this.nextRound());
+    this.workCard.append(head, slots, this.wordBank, this.message, this.nextButton);
+    return this.workCard;
+  }
+  createColorCard() {
+    this.colorCard.className = "word-brick-card";
+    const head = document.createElement("div");
+    head.className = "word-brick-round-head";
+    const titleGroup = document.createElement("div");
+    this.colorTitle.textContent = "\u8BCD\u7816\u6362\u8272";
+    this.colorCopy.textContent = "\u5F85\u5EFA\u9020\u7684\u8BCD\u7816\u4F1A\u7559\u5728\u8FD9\u91CC\uFF1B\u5EFA\u9020\u5B8C\u6210\u540E\u4ECE\u8FD9\u91CC\u6D88\u5931\u3002";
+    titleGroup.append(this.colorTitle, this.colorCopy);
+    this.colorPill.className = "word-brick-pill";
+    this.colorPill.textContent = "\u5F85\u5EFA\u9020";
+    head.append(titleGroup, this.colorPill);
+    this.completeNote.className = "word-brick-complete-note";
+    this.completeNote.hidden = true;
+    this.pendingList.className = "word-brick-list";
+    this.swatches.className = "word-brick-swatches";
+    const buildRow = document.createElement("div");
+    buildRow.className = "word-brick-build-row";
+    this.buildButton.type = "button";
+    this.buildButton.className = "word-brick-primary";
+    this.buildButton.textContent = "\u5F00\u59CB\u5EFA\u9020";
+    this.buildButton.addEventListener("click", () => void this.handleBuildCardAction());
+    buildRow.append(this.buildButton);
+    this.colorCard.append(head, this.completeNote, this.pendingList, this.swatches, buildRow);
+    return this.colorCard;
+  }
+  render() {
+    this.ensureRoundProgress();
+    this.repairCollapsedState();
+    const round = this.currentRound();
+    const progress = this.currentProgress();
+    const unusedCount = round.chars.filter((char) => !progress.usedChars.includes(char)).length;
+    const canAdvance = unusedCount === 0;
+    const canStartNewDay = this.shouldShowDailyComplete();
+    this.roundPill.textContent = `\u7B2C ${this.state.roundIndex + 1} / ${this.state.rounds.length} \u8F6E`;
+    this.roundTitle.textContent = round.title;
+    this.workCard.hidden = this.state.workCollapsed;
+    this.nextButton.disabled = !canAdvance;
+    this.nextButton.textContent = this.isLastRound() ? "\u4ECA\u65E5\u5B8C\u6210" : "\u8FDB\u5165\u4E0B\u4E00\u8F6E";
+    this.renderSlots();
+    this.renderWordBank();
+    this.renderPendingBricks();
+    this.buildButton.textContent = canStartNewDay ? "\u5F00\u59CB\u4E0B\u4E00\u5929" : "\u5F00\u59CB\u5EFA\u9020";
+    this.buildButton.disabled = this.animating || !canStartNewDay && this.pendingEntries().length === 0;
+    if (!this.message.textContent) this.message.textContent = "\u5148\u9009\u4E24\u4E2A\u5B57\u8BD5\u8BD5\u770B\u3002";
+  }
+  renderSlots() {
+    const [first, second] = this.selected;
+    this.slotA.textContent = first ?? "\u5B57";
+    this.slotB.textContent = second ?? "\u5B57";
+    this.slotA.classList.toggle("is-filled", Boolean(first));
+    this.slotB.classList.toggle("is-filled", Boolean(second));
+    this.slotA.classList.toggle("is-correct", this.slotFeedback === "correct");
+    this.slotB.classList.toggle("is-correct", this.slotFeedback === "correct");
+    this.slotA.classList.toggle("is-wrong", this.slotFeedback === "wrong");
+    this.slotB.classList.toggle("is-wrong", this.slotFeedback === "wrong");
+  }
+  renderWordBank() {
+    this.wordBank.innerHTML = "";
+    const progress = this.currentProgress();
+    for (const char of this.currentRound().chars) {
+      const button = document.createElement("button");
+      button.className = "word-brick-char";
+      button.type = "button";
+      button.textContent = char;
+      button.classList.toggle("is-selected", this.selected.includes(char));
+      button.classList.toggle("is-used", progress.usedChars.includes(char));
+      button.addEventListener("click", () => this.selectChar(char));
+      this.wordBank.append(button);
+    }
+  }
+  renderPendingBricks() {
+    this.pendingList.innerHTML = "";
+    const pending = this.pendingEntries();
+    const showComplete = this.shouldShowDailyComplete();
+    const wordWorkComplete = this.isDailyComplete();
+    this.colorCard.classList.toggle("is-daily-complete", showComplete);
+    this.colorTitle.textContent = showComplete ? "\u4ECA\u65E5\u5B57\u7B51\u5DF2\u5168\u90E8\u5B8C\u6210\uFF01" : "\u8BCD\u7816\u6362\u8272";
+    this.colorCopy.textContent = showComplete ? "\u660E\u5929\u4F1A\u7EE7\u7EED\u65B0\u7684\u5B57\u7B51\uFF0C\u4E5F\u53EF\u4EE5\u73B0\u5728\u5F00\u542F\u4E0B\u4E00\u5929\u3002" : wordWorkComplete ? "\u5148\u628A\u5F85\u5EFA\u9020\u8BCD\u7816\u5EFA\u5230\u5854\u4E0A\uFF1B\u5168\u90E8\u5EFA\u9020\u5B8C\u6210\u540E\u624D\u80FD\u5F00\u542F\u4E0B\u4E00\u5929\u3002" : "\u5F85\u5EFA\u9020\u7684\u8BCD\u7816\u4F1A\u7559\u5728\u8FD9\u91CC\uFF1B\u5EFA\u9020\u5B8C\u6210\u540E\u4ECE\u8FD9\u91CC\u6D88\u5931\u3002";
+    this.colorPill.textContent = showComplete ? "\u5DF2\u5B8C\u6210" : "\u5F85\u5EFA\u9020";
+    this.completeNote.hidden = !showComplete;
+    this.pendingList.hidden = showComplete;
+    if (showComplete) {
+      this.activeBrickIndex = null;
+      this.swatches.hidden = true;
+      this.completeNote.textContent = "\u4ECA\u65E5\u5B57\u7B51\u5DF2\u5168\u90E8\u5B8C\u6210\uFF01";
+      return;
+    }
+    if (pending.length === 0) {
+      this.activeBrickIndex = null;
+      this.swatches.hidden = true;
+      return;
+    }
+    if (this.activeBrickIndex === null || this.activeBrickIndex < this.state.builtBrickCount) {
+      this.activeBrickIndex = pending[0].index;
+    }
+    pending.forEach(({ brick, index }) => {
+      const button = document.createElement("button");
+      button.className = "word-brick-word";
+      button.type = "button";
+      button.textContent = brick.word;
+      button.style.background = brick.fill;
+      button.classList.toggle("is-active", index === this.activeBrickIndex);
+      button.addEventListener("click", () => {
+        this.activeBrickIndex = index;
+        this.options.audio?.play("uiTap");
+        this.renderPendingBricks();
+      });
+      this.pendingList.append(button);
+    });
+    this.renderSwatches();
+  }
+  renderSwatches() {
+    this.swatches.innerHTML = "";
+    const activeBrick = this.activeBrickIndex === null ? null : this.state.bricks[this.activeBrickIndex];
+    this.swatches.hidden = !activeBrick;
+    if (!activeBrick) return;
+    for (const color of WORD_BRICK_TOWER_COLORS) {
+      const button = document.createElement("button");
+      button.className = "word-brick-swatch";
+      button.type = "button";
+      button.classList.toggle("is-active", activeBrick.colorId === color.id);
+      button.setAttribute("aria-label", `\u9009\u62E9\u989C\u8272 ${color.id}`);
+      button.innerHTML = `<i style="background:${color.fill}"></i>`;
+      button.addEventListener("click", () => this.updateActiveBrickColor(color.id, color.fill));
+      this.swatches.append(button);
+    }
+  }
+  selectChar(char) {
+    if (this.animating) return;
+    this.slotFeedback = null;
+    if (this.selected.includes(char)) {
+      this.selected = this.selected.filter((item) => item !== char);
+      this.render();
+      return;
+    }
+    if (this.selected.length >= 2) this.selected = [];
+    this.selected.push(char);
+    this.render();
+    if (this.selected.length === 2) this.checkSelection();
+  }
+  checkSelection() {
+    const [first, second] = this.selected;
+    if (!first || !second) return;
+    const word = `${first}${second}`;
+    const progress = this.currentProgress();
+    if (getWordBrickTowerAcceptedWords(this.currentRound()).includes(word) && !progress.foundWords.includes(word)) {
+      this.slotFeedback = "correct";
+      this.renderSlots();
+      this.options.audio?.play("wordKnown");
+      this.message.className = "word-brick-message is-good";
+      this.message.textContent = `\u7EC4\u5408\u6B63\u786E\uFF0C\u6B63\u5728\u751F\u6210\u300C${word}\u300D\u8BCD\u7816\u3002`;
+      void this.playWordBrickRewardAnimation(word, first, second);
+      return;
+    }
+    this.slotFeedback = "wrong";
+    this.renderSlots();
+    this.options.audio?.play("uiInvalid");
+    this.message.className = "word-brick-message is-wrong";
+    this.message.textContent = progress.foundWords.includes(word) ? `\u300C${word}\u300D\u5DF2\u7ECF\u7B51\u6210\u8BCD\u7816\u4E86\u3002` : `\u300C${word}\u300D\u4E0D\u662F\u672C\u8F6E\u8981\u627E\u7684\u8BCD\u3002`;
+    window.setTimeout(() => {
+      this.selected = [];
+      this.slotFeedback = null;
+      this.message.className = "word-brick-message";
+      this.message.textContent = "\u7EE7\u7EED\u4ECE\u5B57\u5361\u91CC\u627E\u8BCD\u3002";
+      this.render();
+    }, 760);
+  }
+  addBrick(word) {
+    const color = WORD_BRICK_TOWER_DEFAULT_COLOR;
+    const progress = this.currentProgress();
+    progress.foundWords.push(word);
+    for (const char of word) {
+      if (this.currentRound().chars.includes(char) && !progress.usedChars.includes(char)) progress.usedChars.push(char);
+    }
+    const brick = {
+      id: `brick-${Date.now()}-${Math.floor(Math.random() * 1e4)}`,
+      word,
+      colorId: color.id,
+      fill: color.fill,
+      createdRound: this.state.roundIndex,
+      createdAt: Date.now()
+    };
+    this.state.bricks.push(brick);
+    this.activeBrickIndex = this.state.bricks.length - 1;
+    this.save();
+    this.syncScene();
+    const roundComplete = this.currentRound().chars.every((char) => progress.usedChars.includes(char));
+    if (roundComplete) {
+      this.options.audio?.play("wordGroupComplete");
+      this.message.textContent = this.isLastRound() ? "\u4ECA\u65E5\u5B57\u7B51\u5B8C\u6210\u3002" : "\u672C\u8F6E\u5B8C\u6210\uFF0C\u53EF\u4EE5\u8FDB\u5165\u4E0B\u4E00\u8F6E\u3002";
+    }
+    return roundComplete;
+  }
+  async playWordBrickRewardAnimation(word, firstChar, secondChar) {
+    this.animating = true;
+    this.render();
+    this.slotFeedback = "correct";
+    this.renderSlots();
+    const layer = document.createElement("div");
+    layer.className = "word-brick-combine-layer";
+    document.body.append(layer);
+    const slotACenter = this.centerOf(this.slotA.getBoundingClientRect());
+    const slotBCenter = this.centerOf(this.slotB.getBoundingClientRect());
+    const workRect = this.workCard.getBoundingClientRect();
+    const middle = {
+      x: workRect.left + workRect.width / 2,
+      y: workRect.top + Math.min(workRect.height * 0.48, 250)
+    };
+    const targetRect = this.pendingList.getBoundingClientRect();
+    const pendingCount = this.pendingEntries().length;
+    const target = {
+      x: targetRect.left + Math.min(42 + pendingCount * 78, Math.max(42, targetRect.width - 42)),
+      y: targetRect.top + 32
+    };
+    const firstChip = this.createCombineChip(firstChar, slotACenter);
+    const secondChip = this.createCombineChip(secondChar, slotBCenter);
+    const brick = document.createElement("div");
+    brick.className = "word-brick-combine-brick";
+    brick.textContent = word;
+    brick.style.left = `${middle.x - 54}px`;
+    brick.style.top = `${middle.y - 29}px`;
+    layer.append(firstChip, secondChip, brick);
+    await Promise.all([
+      this.moveTo(firstChip, slotACenter, { x: middle.x - 26, y: middle.y }, { duration: 430, scale: 0.88 }),
+      this.moveTo(secondChip, slotBCenter, { x: middle.x + 26, y: middle.y }, { duration: 430, scale: 0.88 })
+    ]);
+    await Promise.all([
+      firstChip.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 140, fill: "forwards" }).finished,
+      secondChip.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 140, fill: "forwards" }).finished,
+      brick.animate([
+        { opacity: 0, transform: "scale(0.72)" },
+        { opacity: 1, transform: "scale(1.08)" },
+        { opacity: 1, transform: "scale(1)" }
+      ], { duration: 260, easing: "cubic-bezier(0.2, 0.9, 0.2, 1)", fill: "forwards" }).finished
+    ]);
+    await this.moveTo(brick, middle, target, { duration: 430, scale: 0.82, toOpacity: 0.95 });
+    layer.remove();
+    const roundComplete = this.addBrick(word);
+    this.selected = [];
+    this.slotFeedback = null;
+    this.animating = false;
+    this.message.className = "word-brick-message is-good";
+    if (!roundComplete) this.message.textContent = `\u300C${word}\u300D\u8BCD\u7816\u5DF2\u8FDB\u5165\u5F85\u5EFA\u9020\u680F\u3002`;
+    this.render();
+    if (roundComplete) this.showRoundCompleteFeedback();
+  }
+  createCombineChip(char, center) {
+    const chip = document.createElement("div");
+    chip.className = "word-brick-combine-chip";
+    chip.textContent = char;
+    chip.style.left = `${center.x - 32}px`;
+    chip.style.top = `${center.y - 26}px`;
+    return chip;
+  }
+  centerOf(rect) {
+    return {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2
+    };
+  }
+  async moveTo(element, from, to, options = {}) {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    await element.animate([
+      { transform: "translate(0, 0) scale(1)", opacity: options.fromOpacity ?? 1 },
+      { transform: `translate(${dx}px, ${dy}px) scale(${options.scale ?? 1})`, opacity: options.toOpacity ?? 1 }
+    ], {
+      duration: options.duration ?? 420,
+      easing: "cubic-bezier(0.2, 0.9, 0.2, 1)",
+      fill: "forwards"
+    }).finished;
+  }
+  updateActiveBrickColor(colorId, fill) {
+    if (this.activeBrickIndex === null) return;
+    const brick = this.state.bricks[this.activeBrickIndex];
+    if (!brick || this.activeBrickIndex < this.state.builtBrickCount) return;
+    brick.colorId = colorId;
+    brick.fill = fill;
+    this.options.audio?.play("uiTap");
+    this.save();
+    this.syncScene();
+    this.renderPendingBricks();
+  }
+  clearSlot(index) {
+    if (!this.selected[index]) return;
+    this.selected.splice(index, 1);
+    this.slotFeedback = null;
+    this.message.className = "word-brick-message";
+    this.message.textContent = "\u5DF2\u64A4\u9500\u9009\u62E9\u3002";
+    this.render();
+  }
+  nextRound() {
+    if (this.nextButton.disabled) return;
+    this.options.audio?.play("uiTap");
+    if (!this.isLastRound()) {
+      this.state.roundIndex += 1;
+      this.selected = [];
+      this.slotFeedback = null;
+      this.message.className = "word-brick-message";
+      this.message.textContent = "\u65B0\u4E00\u8F6E\u5F00\u59CB\u3002";
+    } else {
+      if (!this.areAllRoundsComplete()) return;
+      this.state.dayKey = this.todayKey();
+      this.state.workCollapsed = true;
+    }
+    this.save();
+    this.render();
+  }
+  async handleBuildCardAction() {
+    if (this.shouldShowDailyComplete()) {
+      this.startNextDayEarly();
+      return;
+    }
+    await this.startBuild();
+  }
+  async startBuild() {
+    const startIndex = this.state.builtBrickCount;
+    if (this.animating || startIndex >= this.state.bricks.length) return;
+    this.animating = true;
+    this.options.audio?.play("uiConfirm");
+    this.render();
+    this.options.focusScene();
+    this.close();
+    await this.wait(240);
+    await this.options.onBuild(startIndex, (builtBrickCount) => {
+      this.state.builtBrickCount = builtBrickCount;
+      this.save();
+    });
+    this.state.builtBrickCount = this.state.bricks.length;
+    this.activeBrickIndex = null;
+    this.animating = false;
+    this.save();
+    this.syncScene();
+    this.render();
+  }
+  pendingEntries() {
+    return this.state.bricks.map((brick, index) => ({ brick, index })).filter(({ index }) => index >= this.state.builtBrickCount);
+  }
+  shouldShowDailyComplete() {
+    return this.isDailyComplete() && this.areAllTodayBricksBuilt();
+  }
+  isDailyComplete() {
+    return this.state.workCollapsed && this.areAllRoundsComplete();
+  }
+  areAllTodayBricksBuilt() {
+    return this.pendingEntries().length === 0;
+  }
+  repairCollapsedState() {
+    if (!this.state.workCollapsed || this.areAllRoundsComplete()) return;
+    this.state.workCollapsed = false;
+    this.save();
+  }
+  areAllRoundsComplete() {
+    this.ensureRoundProgress();
+    return this.state.rounds.every((round, index) => {
+      const progress = this.state.roundProgress[index];
+      return round.chars.every((char) => progress?.usedChars.includes(char));
+    });
+  }
+  refreshForTodayIfNeeded() {
+    this.ensureRoundProgress();
+    const today = this.todayKey();
+    if (this.state.dayKey === today) return;
+    if (!this.areAllRoundsComplete() || !this.areAllTodayBricksBuilt()) return;
+    this.resetDaily(today, "\u65B0\u4E00\u5929\u5F00\u59CB\u3002");
+  }
+  startNextDayEarly() {
+    if (this.animating || !this.shouldShowDailyComplete()) return;
+    this.options.audio?.play("uiConfirm");
+    this.resetDaily(this.todayKey(), "\u65B0\u4E00\u5929\u5F00\u59CB\u3002");
+    this.render();
+  }
+  showRoundCompleteFeedback() {
+    if (this.roundCompleteFeedbackTimer !== null) window.clearTimeout(this.roundCompleteFeedbackTimer);
+    this.roundCompleteFeedback.hidden = false;
+    this.roundCompleteFeedback.classList.remove("is-showing");
+    void this.roundCompleteFeedback.offsetWidth;
+    this.roundCompleteFeedback.classList.add("is-showing");
+    this.roundCompleteFeedbackTimer = window.setTimeout(() => {
+      this.roundCompleteFeedback.hidden = true;
+      this.roundCompleteFeedback.classList.remove("is-showing");
+      this.roundCompleteFeedbackTimer = null;
+    }, 1500);
+  }
+  resetDaily(dayKey, message) {
+    const nextDayIndex = this.state.dayIndex + 1;
+    this.state.dayKey = dayKey;
+    this.state.dayIndex = nextDayIndex;
+    this.state.rounds = this.options.createDailyRounds(nextDayIndex, dayKey);
+    this.state.roundIndex = 0;
+    this.state.workCollapsed = false;
+    this.state.roundProgress = this.state.rounds.map(() => ({ usedChars: [], foundWords: [] }));
+    this.selected = [];
+    this.activeBrickIndex = this.pendingEntries()[0]?.index ?? null;
+    this.slotFeedback = null;
+    this.message.className = "word-brick-message is-good";
+    this.message.textContent = message;
+    this.save();
+  }
+  currentRound() {
+    return this.state.rounds[this.state.roundIndex] ?? this.state.rounds[0];
+  }
+  currentProgress() {
+    this.ensureRoundProgress();
+    return this.state.roundProgress[this.state.roundIndex];
+  }
+  ensureRoundProgress() {
+    if (this.state.rounds.length === 0) {
+      this.state.rounds = this.options.createDailyRounds(this.state.dayIndex, this.state.dayKey);
+    }
+    this.state.roundIndex = Math.max(0, Math.min(this.state.rounds.length - 1, this.state.roundIndex));
+    while (this.state.roundProgress.length < this.state.rounds.length) {
+      this.state.roundProgress.push({ usedChars: [], foundWords: [] });
+    }
+    if (this.state.roundProgress.length > this.state.rounds.length) {
+      this.state.roundProgress = this.state.roundProgress.slice(0, this.state.rounds.length);
+    }
+  }
+  isLastRound() {
+    return this.state.roundIndex >= this.state.rounds.length - 1;
+  }
+  todayKey() {
+    return createWordBrickTowerDayKey();
+  }
+  syncScene() {
+    this.options.onSceneChange(this.state.bricks, this.state.builtBrickCount);
+  }
+  wait(ms) {
+    return new Promise((resolve) => window.setTimeout(resolve, ms));
+  }
+  save() {
+    this.options.onChange(this.cloneState(this.state));
+  }
+  cloneState(state) {
+    return {
+      dayKey: typeof state.dayKey === "string" && state.dayKey.length > 0 ? state.dayKey : this.todayKey(),
+      dayIndex: Math.max(0, Math.floor(state.dayIndex)),
+      rounds: state.rounds.map(cloneRound2),
+      roundIndex: Math.max(0, Math.min(state.rounds.length - 1, state.roundIndex)),
+      workCollapsed: Boolean(state.workCollapsed),
+      builtBrickCount: Math.max(0, Math.min(state.bricks.length, state.builtBrickCount)),
+      bricks: state.bricks.map((brick) => ({ ...brick })),
+      roundProgress: state.roundProgress.map(cloneProgress)
+    };
+  }
+};
+
+// src/word-brick-tower/WordBrickTowerScene.ts
+var SOURCE_TOTAL_LEVELS = 34;
+var BRICK_UNIT_SCALE = 2;
+var TOTAL_LEVELS = Math.ceil(SOURCE_TOTAL_LEVELS / BRICK_UNIT_SCALE);
+var FOUNDATION_HEIGHT = 10;
+var SOURCE_BLOCK_SIZE = 8.2;
+var SOURCE_BLOCK_STEP = 7.85;
+var SOURCE_BLOCK_GAP = 0.38;
+var BLOCK_SIZE = SOURCE_BLOCK_SIZE * BRICK_UNIT_SCALE + SOURCE_BLOCK_GAP;
+var BLOCK_STEP = SOURCE_BLOCK_STEP * BRICK_UNIT_SCALE;
+var BLOCK_GRID_STEP = (SOURCE_BLOCK_SIZE + SOURCE_BLOCK_GAP) * BRICK_UNIT_SCALE;
+var ROOT_ROTATION_Y = 0.2;
+var FOUNDATION_SAMPLE_RADIUS_X = 132;
+var FOUNDATION_SAMPLE_RADIUS_Z = 96;
+var FOUNDATION_GROUND_CLEARANCE = 1.4;
+var MIN_BUILD_RATIO = 0.04;
+var MAX_BUILD_RATIO = 1;
+var COLOR_PALETTE = [
+  "#d98560",
+  "#e2bc62",
+  "#82aa70",
+  "#75aebe",
+  "#ded3ba",
+  "#6ea990",
+  "#d79791",
+  "#b7a2c7"
+];
+var WordBrickTowerScene = class {
+  constructor(options) {
+    this.options = options;
+    const ratio = MathUtils.clamp(options.buildRatio ?? 0.8, MIN_BUILD_RATIO, MAX_BUILD_RATIO);
+    this.baseBuiltLevels = Math.max(1, Math.round(TOTAL_LEVELS * ratio));
+    this.root.name = "WordBrickTowerPreview";
+    this.root.scale.setScalar(this.options.scale ?? 1);
+    this.root.rotation.y = ROOT_ROTATION_Y;
+    this.root.position.copy(this.getGroundedRootPosition(this.options.position));
+    this.options.scene.add(this.root);
+    this.wordBrickBlueprint = this.createWordBrickBlueprint();
+    this.createFoundation();
+    this.root.add(this.towerRoot);
+    this.towerRoot.add(this.wordBrickRoot);
+    this.createVoxelTower();
+    this.createVines();
+    this.options.canvas.addEventListener("click", this.onCanvasClick);
+  }
+  root = new Group();
+  towerRoot = new Group();
+  wordBrickRoot = new Group();
+  blockGeometry = new BoxGeometry(1, 1, 1);
+  leafGeometry = new IcosahedronGeometry(1, 0);
+  raycaster = new Raycaster();
+  pointer = new Vector2();
+  baseMaterial = this.createMaterial("#d7a176", 0.14);
+  baseLightMaterial = this.createMaterial("#ecc39a", 0.16);
+  mortarMaterial = this.createMaterial("#dfd6bf", 0.12);
+  shadowMaterial = this.createMaterial("#514f46", 0.04);
+  vineMaterial = this.createMaterial("#3f8a4b", 0.1);
+  leafMaterial = this.createMaterial("#57a95e", 0.12);
+  leafLightMaterial = this.createMaterial("#76bd63", 0.12);
+  blockMaterials = COLOR_PALETTE.map((color) => this.createMaterial(color, 0.18));
+  animatedLeaves = [];
+  baseBuiltLevels;
+  wordBrickBlueprint;
+  wordBrickMeshes = /* @__PURE__ */ new Map();
+  wordBricks = [];
+  builtBrickCount = 0;
+  update(elapsed) {
+    this.towerRoot.rotation.y = Math.sin(elapsed * 0.32) * 0.012;
+    this.animatedLeaves.forEach((leaf, index) => {
+      const phase = leaf.userData.phase ?? index;
+      const baseScale = leaf.userData.baseScale ?? leaf.scale;
+      const pulse = 1 + Math.sin(elapsed * 1.2 + phase) * 0.04;
+      leaf.scale.set(baseScale.x * pulse, baseScale.y * pulse, baseScale.z * pulse);
+    });
+  }
+  dispose() {
+    this.options.canvas.removeEventListener("click", this.onCanvasClick);
+    this.options.scene.remove(this.root);
+    this.disposeObject(this.root);
+  }
+  getFocusTarget() {
+    const lastSlot = this.wordBrickBlueprint[Math.min(this.wordBricks.length - 1, this.wordBrickBlueprint.length - 1)];
+    const addedLevels = lastSlot ? Math.max(0, (lastSlot.position.y - FOUNDATION_HEIGHT) / BLOCK_STEP - this.baseBuiltLevels) : 0;
+    const focusLevel = this.baseBuiltLevels * 0.58 + addedLevels * 0.35;
+    const focusY = FOUNDATION_HEIGHT + BLOCK_STEP * focusLevel;
+    return this.root.position.clone().add(new Vector3(0, focusY * (this.options.scale ?? 1) + 8, 0));
+  }
+  setWordBricks(bricks, builtBrickCount) {
+    this.wordBricks = bricks.map((brick) => ({ ...brick }));
+    this.builtBrickCount = MathUtils.clamp(Math.floor(builtBrickCount), 0, this.wordBricks.length);
+    this.renderWordBricks();
+  }
+  async buildPendingBricks(startIndex, onBuilt) {
+    const firstIndex = MathUtils.clamp(Math.floor(startIndex), 0, this.wordBricks.length);
+    if (firstIndex >= this.wordBricks.length) return;
+    this.builtBrickCount = firstIndex;
+    this.renderWordBricks();
+    for (let index = firstIndex; index < this.wordBricks.length; index += 1) {
+      await this.animateBrickToBuilt(index);
+      this.builtBrickCount = index + 1;
+      const mesh = this.wordBrickMeshes.get(index);
+      if (mesh) this.applyBrickMaterialState(mesh, false);
+      onBuilt?.(this.builtBrickCount);
+      await this.wait(110);
+    }
+    this.renderWordBricks();
+  }
+  createFoundation() {
+    const shadow = new Mesh(
+      new CircleGeometry(1, 36),
+      new MeshBasicMaterial({ color: "#446344", transparent: true, opacity: 0.18, depthWrite: false })
+    );
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.position.y = 0.35;
+    shadow.scale.set(126, 90, 1);
+    this.root.add(shadow);
+    const base = new Mesh(new CylinderGeometry(1, 1.12, 1, 32), this.baseLightMaterial);
+    base.position.y = FOUNDATION_HEIGHT * 0.5;
+    base.scale.set(98, FOUNDATION_HEIGHT, 72);
+    this.root.add(base);
+    const lowerStep = new Mesh(new CylinderGeometry(1.08, 1.16, 1, 32), this.baseMaterial);
+    lowerStep.position.y = 2.4;
+    lowerStep.scale.set(108, 4.8, 80);
+    this.root.add(lowerStep);
+  }
+  getGroundedRootPosition(position) {
+    const scale = this.options.scale ?? 1;
+    const cos = Math.cos(ROOT_ROTATION_Y);
+    const sin = Math.sin(ROOT_ROTATION_Y);
+    let groundY = position.y;
+    for (let ix = -2; ix <= 2; ix++) {
+      for (let iz = -2; iz <= 2; iz++) {
+        const nx = ix / 2;
+        const nz = iz / 2;
+        if (nx * nx + nz * nz > 1.18) continue;
+        const localX = nx * FOUNDATION_SAMPLE_RADIUS_X * scale;
+        const localZ = nz * FOUNDATION_SAMPLE_RADIUS_Z * scale;
+        const worldX = position.x + localX * cos - localZ * sin;
+        const worldZ = position.z + localX * sin + localZ * cos;
+        groundY = Math.max(groundY, this.options.world.getSafeLandHeight(worldX, worldZ));
+      }
+    }
+    return new Vector3(position.x, groundY + FOUNDATION_GROUND_CLEARANCE, position.z);
+  }
+  createVoxelTower() {
+    for (let level = 0; level < this.baseBuiltLevels; level++) {
+      const radiusX = this.radiusXAt(level);
+      const radiusZ = this.radiusZAt(level);
+      const maxX = Math.ceil(radiusX);
+      const maxZ = Math.ceil(radiusZ);
+      const y = FOUNDATION_HEIGHT + BLOCK_STEP * level + BLOCK_STEP * 0.5;
+      for (let gx = -maxX; gx <= maxX; gx++) {
+        for (let gz = -maxZ; gz <= maxZ; gz++) {
+          if (!this.isShellBlock(gx, gz, radiusX, radiusZ)) continue;
+          if (this.isSpiralCut(level, gx, gz, radiusX, radiusZ)) continue;
+          const x = gx * BLOCK_GRID_STEP;
+          const z = gz * BLOCK_GRID_STEP;
+          if (this.isWindowBlock(level, gx, gz, radiusX, radiusZ)) {
+            this.addWindowInset(x, y, z, gx, gz);
+            continue;
+          }
+          const block = this.createBlock(this.pickBlockMaterial(level, gx, gz));
+          block.position.set(x, y, z);
+          this.towerRoot.add(block);
+        }
+      }
+    }
+  }
+  createVines() {
+    const points = [];
+    const topLevel = Math.max(6, this.baseBuiltLevels - 2);
+    for (let level = 1; level <= topLevel; level++) {
+      const sourceLevel = this.sourceLevelAt(level);
+      const angle = -2.3 + sourceLevel * 0.2;
+      const radiusX = this.radiusXAt(level) * BLOCK_GRID_STEP + 2.5;
+      const radiusZ = this.radiusZAt(level) * BLOCK_GRID_STEP + 2.5;
+      points.push(new Vector3(
+        Math.cos(angle) * radiusX,
+        FOUNDATION_HEIGHT + BLOCK_STEP * level,
+        Math.sin(angle) * radiusZ
+      ));
+    }
+    const vine = new Mesh(
+      new TubeGeometry(new CatmullRomCurve3(points), 76, 1.35, 6, false),
+      this.vineMaterial
+    );
+    this.towerRoot.add(vine);
+    points.forEach((point, index) => {
+      if (index % 3 !== 1) return;
+      const angle = -2.3 + this.sourceLevelAt(index + 1) * 0.2;
+      const leaf = new Mesh(this.leafGeometry, index % 2 === 0 ? this.leafLightMaterial : this.leafMaterial);
+      leaf.position.copy(point).add(new Vector3(Math.cos(angle) * 2.7, 0.6, Math.sin(angle) * 2.7));
+      leaf.scale.set(3.4, 1.1, 2.2);
+      leaf.rotation.set(0.35, angle, 0.55 + index * 0.19);
+      leaf.userData.phase = index * 0.47;
+      leaf.userData.baseScale = leaf.scale.clone();
+      this.animatedLeaves.push(leaf);
+      this.towerRoot.add(leaf);
+    });
+  }
+  renderWordBricks() {
+    this.clearWordBrickRoot();
+    this.wordBrickMeshes.clear();
+    this.wordBricks.forEach((brick, index) => {
+      const slot = this.wordBrickBlueprint[index];
+      if (!slot) return;
+      const preview = index >= this.builtBrickCount;
+      const material = this.createWordBrickMaterial(brick.fill, preview);
+      const mesh = new Mesh(this.blockGeometry, material);
+      mesh.name = preview ? `WordBrickPreview:${brick.word}` : `WordBrick:${brick.word}`;
+      mesh.position.copy(slot.position);
+      mesh.scale.copy(slot.scale);
+      mesh.userData.wordBrickIndex = index;
+      mesh.userData.baseScale = slot.scale.clone();
+      mesh.userData.finalPosition = slot.position.clone();
+      this.wordBrickMeshes.set(index, mesh);
+      this.wordBrickRoot.add(mesh);
+    });
+  }
+  createWordBrickBlueprint() {
+    const slots = [];
+    for (let level = this.baseBuiltLevels; level < TOTAL_LEVELS; level++) {
+      slots.push(...this.createBlueprintLevelSlots(level));
+    }
+    return slots;
+  }
+  createBlueprintLevelSlots(level) {
+    const radiusX = this.radiusXAt(level);
+    const radiusZ = this.radiusZAt(level);
+    const maxX = Math.ceil(radiusX);
+    const maxZ = Math.ceil(radiusZ);
+    const y = FOUNDATION_HEIGHT + BLOCK_STEP * level + BLOCK_STEP * 0.5;
+    const slots = [];
+    for (let gx = -maxX; gx <= maxX; gx++) {
+      for (let gz = -maxZ; gz <= maxZ; gz++) {
+        if (!this.isShellBlock(gx, gz, radiusX, radiusZ)) continue;
+        if (this.isSpiralCut(level, gx, gz, radiusX, radiusZ)) continue;
+        if (this.isWindowBlock(level, gx, gz, radiusX, radiusZ, TOTAL_LEVELS)) continue;
+        const position = new Vector3(
+          gx * BLOCK_GRID_STEP,
+          y,
+          gz * BLOCK_GRID_STEP
+        );
+        slots.push({
+          position,
+          scale: new Vector3(BLOCK_SIZE * 0.92, BLOCK_SIZE * 0.92, BLOCK_SIZE * 0.92),
+          angle: Math.atan2(gz / radiusZ, gx / radiusX)
+        });
+      }
+    }
+    return slots.sort((a, b) => this.positiveModulo(a.angle + 0.55, Math.PI * 2) - this.positiveModulo(b.angle + 0.55, Math.PI * 2)).map(({ position, scale }) => ({ position, scale }));
+  }
+  async animateBrickToBuilt(index) {
+    const mesh = this.wordBrickMeshes.get(index);
+    if (!mesh) return;
+    const material = mesh.material;
+    const baseScale = (mesh.userData.baseScale ?? mesh.scale).clone();
+    const finalPosition = (mesh.userData.finalPosition ?? mesh.position).clone();
+    const startPosition = finalPosition.clone().add(new Vector3(0, 44, 0));
+    mesh.position.copy(startPosition);
+    material.opacity = 0.25;
+    material.depthWrite = false;
+    await this.animateOver(520, (progress) => {
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const pulse = Math.sin(progress * Math.PI) * 0.16;
+      mesh.position.lerpVectors(startPosition, finalPosition, eased);
+      mesh.scale.set(baseScale.x * (1 + pulse), baseScale.y * (1 + pulse * 0.55), baseScale.z * (1 + pulse));
+      material.opacity = MathUtils.lerp(0.25, 1, eased);
+      material.emissiveIntensity = MathUtils.lerp(0.1, 0.18, eased);
+      material.depthWrite = progress > 0.55;
+    });
+    mesh.position.copy(finalPosition);
+    mesh.scale.copy(baseScale);
+  }
+  animateOver(durationMs, onFrame) {
+    return new Promise((resolve) => {
+      const start = performance.now();
+      const step = (now2) => {
+        const progress = MathUtils.clamp((now2 - start) / durationMs, 0, 1);
+        onFrame(progress);
+        if (progress >= 1) {
+          resolve();
+          return;
+        }
+        requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    });
+  }
+  applyBrickMaterialState(mesh, preview) {
+    mesh.material.transparent = preview;
+    mesh.material.opacity = preview ? 0.52 : 1;
+    mesh.material.depthWrite = !preview;
+    mesh.material.emissiveIntensity = preview ? 0.2 : 0.18;
+    mesh.name = preview ? mesh.name.replace("WordBrick:", "WordBrickPreview:") : mesh.name.replace("WordBrickPreview:", "WordBrick:");
+  }
+  createWordBrickMaterial(color, preview) {
+    return new MeshLambertMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: preview ? 0.2 : 0.18,
+      flatShading: true,
+      transparent: preview,
+      opacity: preview ? 0.52 : 1,
+      depthWrite: !preview
+    });
+  }
+  wait(ms) {
+    return new Promise((resolve) => window.setTimeout(resolve, ms));
+  }
+  clearWordBrickRoot() {
+    this.wordBrickRoot.traverse((child) => {
+      if (!(child instanceof Mesh) && !(child instanceof LineSegments)) return;
+      const materialList = Array.isArray(child.material) ? child.material : [child.material];
+      materialList.forEach((material) => material.dispose());
+    });
+    this.wordBrickRoot.clear();
+  }
+  addWindowInset(x, y, z, gx, gz) {
+    const inset = new Mesh(this.blockGeometry, this.shadowMaterial);
+    inset.scale.set(BLOCK_SIZE * 0.56, BLOCK_SIZE * 0.58, BLOCK_SIZE * 0.28);
+    const normal = new Vector3(gx, 0, gz);
+    if (normal.lengthSq() < 0.01) normal.set(0, 0, 1);
+    normal.normalize();
+    inset.position.set(x - normal.x * 1.8, y, z - normal.z * 1.8);
+    this.towerRoot.add(inset);
+  }
+  radiusXAt(level) {
+    return this.sourceRadiusXAt(this.sourceLevelAt(level)) / BRICK_UNIT_SCALE;
+  }
+  radiusZAt(level) {
+    return this.sourceRadiusZAt(this.sourceLevelAt(level)) / BRICK_UNIT_SCALE;
+  }
+  sourceLevelAt(level) {
+    return level * BRICK_UNIT_SCALE;
+  }
+  sourceRadiusXAt(sourceLevel) {
+    if (sourceLevel < 7) return 9.1;
+    if (sourceLevel < 14) return 7.4;
+    if (sourceLevel < 21) return 6;
+    if (sourceLevel < 28) return 4.8;
+    return 3.9;
+  }
+  sourceRadiusZAt(sourceLevel) {
+    if (sourceLevel < 7) return 6.7;
+    if (sourceLevel < 14) return 5.55;
+    if (sourceLevel < 21) return 4.5;
+    if (sourceLevel < 28) return 3.65;
+    return 3;
+  }
+  isShellBlock(gx, gz, radiusX, radiusZ) {
+    const value = this.ellipseValue(gx, gz, radiusX, radiusZ);
+    if (value > 1) return false;
+    if (value >= 0.42) return true;
+    const neighbors = [
+      this.ellipseValue(gx + 1, gz, radiusX, radiusZ),
+      this.ellipseValue(gx - 1, gz, radiusX, radiusZ),
+      this.ellipseValue(gx, gz + 1, radiusX, radiusZ),
+      this.ellipseValue(gx, gz - 1, radiusX, radiusZ)
+    ];
+    return neighbors.some((neighbor) => neighbor > 1);
+  }
+  isSpiralCut(level, gx, gz, radiusX, radiusZ) {
+    const sourceLevel = this.sourceLevelAt(level);
+    if (sourceLevel < 4) return false;
+    const surface = this.ellipseValue(gx, gz, radiusX, radiusZ);
+    if (surface < 0.62) return false;
+    const angle = Math.atan2(gz / radiusZ, gx / radiusX);
+    const cutAngle = -2.35 + sourceLevel * 0.2;
+    return Math.abs(this.shortAngleDelta(angle, cutAngle)) < 0.18;
+  }
+  isWindowBlock(level, gx, gz, radiusX, radiusZ, builtLevels = this.baseBuiltLevels) {
+    const sourceLevel = this.sourceLevelAt(level);
+    const sourceBuiltLevels = this.sourceLevelAt(builtLevels);
+    if (sourceLevel < 3 || sourceLevel >= sourceBuiltLevels - 4) return false;
+    if (this.ellipseValue(gx, gz, radiusX, radiusZ) < 0.78) return false;
+    const vertical = sourceLevel % 5 === 1 || sourceLevel % 5 === 2;
+    if (!vertical) return false;
+    return this.positiveModulo(gx * 3 + gz * 5 + Math.floor(sourceLevel / 5), 7) === 0;
+  }
+  pickBlockMaterial(level, gx, gz) {
+    const sourceLevel = this.sourceLevelAt(level);
+    if (this.positiveModulo(sourceLevel + gx + gz, 5) === 0) return this.baseMaterial;
+    if (this.positiveModulo(sourceLevel * 2 + gx - gz, 7) === 0) return this.baseLightMaterial;
+    if (this.positiveModulo(sourceLevel + gx * 2 - gz, 11) === 0) return this.mortarMaterial;
+    const index = this.positiveModulo(sourceLevel * 5 + gx * 3 + gz * 7, this.blockMaterials.length);
+    return this.blockMaterials[index];
+  }
+  createBlock(material) {
+    const block = new Mesh(this.blockGeometry, material);
+    const size = BLOCK_SIZE * 0.92;
+    block.scale.set(size, size, size);
+    return block;
+  }
+  createMaterial(color, emissiveIntensity) {
+    return new MeshLambertMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity,
+      flatShading: true
+    });
+  }
+  ellipseValue(gx, gz, radiusX, radiusZ) {
+    return gx * gx / (radiusX * radiusX) + gz * gz / (radiusZ * radiusZ);
+  }
+  shortAngleDelta(from, to) {
+    return Math.atan2(Math.sin(to - from), Math.cos(to - from));
+  }
+  positiveModulo(value, base) {
+    return (value % base + base) % base;
+  }
+  onCanvasClick = (event) => {
+    if (this.isUiTarget(event.target)) return;
+    const rect = this.options.canvas.getBoundingClientRect();
+    this.pointer.x = (event.clientX - rect.left) / rect.width * 2 - 1;
+    this.pointer.y = -((event.clientY - rect.top) / rect.height * 2 - 1);
+    this.raycaster.setFromCamera(this.pointer, this.options.camera);
+    const hits = this.raycaster.intersectObject(this.root, true);
+    if (hits.length === 0) return;
+    this.options.focusOn(this.getFocusTarget());
+    this.options.onOpen();
+  };
+  isUiTarget(target) {
+    return target instanceof Element && Boolean(target.closest('[data-game-ui="true"]'));
+  }
+  disposeObject(object) {
+    const geometries = /* @__PURE__ */ new Set();
+    const materials = /* @__PURE__ */ new Set();
+    object.traverse((child) => {
+      if (!(child instanceof Mesh) && !(child instanceof LineSegments)) return;
+      geometries.add(child.geometry);
+      const materialList = Array.isArray(child.material) ? child.material : [child.material];
+      materialList.forEach((material) => materials.add(material));
+    });
+    geometries.forEach((geometry) => geometry.dispose());
+    materials.forEach((material) => material.dispose());
+  }
+};
+
+// src/word-brick-tower/index.ts
+var STORAGE_PREFIX2 = "v7_word_brick_tower";
+var cloneProgress2 = (progress) => ({
+  usedChars: [...progress.usedChars],
+  foundWords: [...progress.foundWords]
+});
+var cloneRound3 = (round) => ({
+  title: round.title,
+  chars: [...round.chars],
+  words: [...round.words]
+});
+var cloneState2 = (state) => ({
+  dayKey: state.dayKey,
+  dayIndex: state.dayIndex,
+  rounds: state.rounds.map(cloneRound3),
+  roundIndex: state.roundIndex,
+  workCollapsed: state.workCollapsed,
+  builtBrickCount: state.builtBrickCount,
+  bricks: state.bricks.map((brick) => ({ ...brick })),
+  roundProgress: state.roundProgress.map(cloneProgress2)
+});
+var storageKeyForSlot2 = (slotId) => `${STORAGE_PREFIX2}:${slotId}`;
+var fallbackColor = () => WORD_BRICK_TOWER_DEFAULT_COLOR ?? WORD_BRICK_TOWER_COLORS[0];
+var normalizeRound = (raw) => {
+  if (!raw || typeof raw !== "object") return null;
+  const candidate = raw;
+  if (typeof candidate.title !== "string") return null;
+  if (!Array.isArray(candidate.chars) || !Array.isArray(candidate.words)) return null;
+  const chars = uniqueStrings(candidate.chars).filter((char) => Array.from(char).length === 1);
+  const words = uniqueStrings(candidate.words).filter((word) => Array.from(word).length === 2);
+  if (chars.length === 0 || words.length === 0) return null;
+  return { title: candidate.title, chars, words };
+};
+var uniqueStrings = (items) => [...new Set(items.filter((item) => typeof item === "string"))];
+var normalizeProgress = (raw, round) => {
+  const candidate = raw && typeof raw === "object" ? raw : {};
+  const acceptedWords = getWordBrickTowerAcceptedWords(round);
+  const usedChars = Array.isArray(candidate.usedChars) ? [...new Set(candidate.usedChars.filter((char) => typeof char === "string" && round.chars.includes(char)))] : [];
+  const foundWords = Array.isArray(candidate.foundWords) ? [...new Set(candidate.foundWords.filter((word) => typeof word === "string" && acceptedWords.includes(word)))] : [];
+  return { usedChars, foundWords };
+};
+var normalizeBrick = (raw, index, roundCount) => {
+  if (!raw || typeof raw !== "object") return null;
+  const candidate = raw;
+  if (typeof candidate.word !== "string" || candidate.word.length < 2 || candidate.word.length > 8) return null;
+  const color = WORD_BRICK_TOWER_COLORS.find((item) => item.id === candidate.colorId) ?? fallbackColor();
+  return {
+    id: typeof candidate.id === "string" ? candidate.id : `brick-restored-${index}`,
+    word: candidate.word,
+    colorId: color.id,
+    fill: color.fill,
+    createdRound: typeof candidate.createdRound === "number" ? MathUtils.clamp(Math.floor(candidate.createdRound), 0, Math.max(0, roundCount - 1)) : 0,
+    createdAt: typeof candidate.createdAt === "number" ? candidate.createdAt : Date.now()
+  };
+};
+var normalizeState2 = (raw, createDailyRounds) => {
+  if (!raw || typeof raw !== "object") {
+    const state = createInitialWordBrickTowerState();
+    state.rounds = createDailyRounds(state.dayIndex, state.dayKey);
+    state.roundProgress = state.rounds.map(() => ({ usedChars: [], foundWords: [] }));
+    return state;
+  }
+  const candidate = raw;
+  const dayKey = typeof candidate.dayKey === "string" && candidate.dayKey.length > 0 ? candidate.dayKey : createWordBrickTowerDayKey();
+  const dayIndex = typeof candidate.dayIndex === "number" ? Math.max(0, Math.floor(candidate.dayIndex)) : 0;
+  const rounds = Array.isArray(candidate.rounds) ? candidate.rounds.map(normalizeRound).filter((round) => round !== null && isWordBrickTowerRoundPlayable(round)) : [];
+  const roundsWereRegenerated = rounds.length === 0;
+  const resolvedRounds = rounds.length > 0 ? rounds : createDailyRounds(dayIndex, dayKey);
+  const restoredBricks = Array.isArray(candidate.bricks) ? candidate.bricks.map((brick, index) => normalizeBrick(brick, index, resolvedRounds.length)).filter((brick) => brick !== null && !hasExcludedWordBrickChar(brick.word)) : [];
+  const rawBuiltBrickCount = typeof candidate.builtBrickCount === "number" ? MathUtils.clamp(Math.floor(candidate.builtBrickCount), 0, restoredBricks.length) : 0;
+  const bricks = roundsWereRegenerated ? restoredBricks.slice(0, rawBuiltBrickCount) : restoredBricks;
+  const roundProgress = resolvedRounds.map((round, index) => normalizeProgress(Array.isArray(candidate.roundProgress) ? candidate.roundProgress[index] : null, round));
+  return {
+    dayKey,
+    dayIndex,
+    rounds: resolvedRounds,
+    roundIndex: typeof candidate.roundIndex === "number" ? MathUtils.clamp(Math.floor(candidate.roundIndex), 0, Math.max(0, resolvedRounds.length - 1)) : 0,
+    workCollapsed: Boolean(candidate.workCollapsed),
+    builtBrickCount: MathUtils.clamp(rawBuiltBrickCount, 0, bricks.length),
+    bricks,
+    roundProgress
+  };
+};
+var loadState2 = (slotId, createDailyRounds) => {
+  try {
+    return normalizeState2(JSON.parse(window.localStorage.getItem(storageKeyForSlot2(slotId)) ?? "null"), createDailyRounds);
+  } catch {
+    const state = createInitialWordBrickTowerState();
+    state.rounds = createDailyRounds(state.dayIndex, state.dayKey);
+    state.roundProgress = state.rounds.map(() => ({ usedChars: [], foundWords: [] }));
+    return state;
+  }
+};
+var saveState2 = (slotId, state) => {
+  window.localStorage.setItem(storageKeyForSlot2(slotId), JSON.stringify(cloneState2(state)));
+};
+function mountWordBrickTowerModule(options) {
+  let overlay;
+  let towerScene;
+  const createDailyRounds = (dayIndex, dayKey) => createWordBrickTowerDailyRounds(dayIndex, dayKey, options.getLearningState());
+  const focusTower = () => options.focusOn(towerScene.getFocusTarget());
+  towerScene = new WordBrickTowerScene({
+    scene: options.scene,
+    canvas: options.canvas,
+    camera: options.camera,
+    world: options.world,
+    position: options.position,
+    buildRatio: options.buildRatio,
+    scale: options.scale,
+    focusOn: (target) => options.focusOn(target),
+    onOpen: () => overlay.open()
+  });
+  overlay = new WordBrickTowerOverlay({
+    root: options.root,
+    initialState: loadState2(options.saveSlotId, createDailyRounds),
+    audio: options.audio,
+    createDailyRounds,
+    onChange: (state) => saveState2(options.saveSlotId, state),
+    onSceneChange: (bricks, builtBrickCount) => towerScene.setWordBricks(bricks, builtBrickCount),
+    focusScene: focusTower,
+    onBuild: (startIndex, onBuilt) => towerScene.buildPendingBricks(startIndex, onBuilt)
+  });
+  return {
+    update(_dt, elapsed) {
+      towerScene.update(elapsed);
+    },
+    dispose() {
+      overlay.dispose();
+      towerScene.dispose();
     }
   };
 }
@@ -30662,10 +32477,25 @@ var FreeCameraController = class {
       duration: 1.15
     };
   }
+  glideToDefaultView(interactionVersion, duration = 1.35) {
+    if (interactionVersion !== this.interactionVersion) return;
+    this.cameraMode = "surface";
+    this.moveSpeed = 190;
+    this.focusTransition = {
+      startPosition: this.position.clone(),
+      endPosition: this.defaultPosition.clone(),
+      startYaw: this.yaw,
+      endYaw: this.defaultYaw,
+      startPitch: this.pitch,
+      endPitch: this.defaultPitch,
+      timer: 0,
+      duration
+    };
+  }
   isUnderwater() {
     return this.cameraMode === "underwater";
   }
-  glideToReward(target, kind, heightOffset = 24, viewDistance) {
+  glideToReward(target, kind, heightOffset = 24, viewDistance, screenOffsetX = 0) {
     const lookTarget = target.clone().add(new Vector3(0, heightOffset, 0));
     const fromTarget = this.position.clone().sub(lookTarget);
     fromTarget.y = 0;
@@ -30682,7 +32512,8 @@ var FreeCameraController = class {
     );
     endPosition.x = MathUtils.clamp(endPosition.x, -690, 690);
     endPosition.z = MathUtils.clamp(endPosition.z, -690, 690);
-    const { yaw, pitch } = this.getLookAngles(lookTarget, endPosition);
+    const framedLookTarget = screenOffsetX === 0 ? lookTarget : this.getHorizontallyFramedLookTarget(lookTarget, endPosition, screenOffsetX);
+    const { yaw, pitch } = this.getLookAngles(framedLookTarget, endPosition);
     this.focusTransition = {
       startPosition: this.position.clone(),
       endPosition,
@@ -30692,6 +32523,35 @@ var FreeCameraController = class {
       endPitch: pitch,
       timer: 0,
       duration: 1.18
+    };
+  }
+  glideToRewardCluster(target, radius) {
+    const lookTarget = target.clone();
+    const fromTarget = this.position.clone().sub(lookTarget);
+    fromTarget.y = 0;
+    if (fromTarget.lengthSq() < 1) {
+      fromTarget.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
+    }
+    fromTarget.normalize();
+    const distance = MathUtils.clamp(280 + radius * 0.9, 280, 520);
+    const endPosition = lookTarget.clone().add(fromTarget.multiplyScalar(distance));
+    endPosition.y = Math.max(
+      lookTarget.y + 96,
+      this.world.getHeight(endPosition.x, endPosition.z) + 68,
+      WATER_LEVEL + 84
+    );
+    endPosition.x = MathUtils.clamp(endPosition.x, -690, 690);
+    endPosition.z = MathUtils.clamp(endPosition.z, -690, 690);
+    const { yaw, pitch } = this.getLookAngles(lookTarget, endPosition);
+    this.focusTransition = {
+      startPosition: this.position.clone(),
+      endPosition,
+      startYaw: this.yaw,
+      endYaw: yaw,
+      startPitch: this.pitch,
+      endPitch: pitch,
+      timer: 0,
+      duration: 1.25
     };
   }
   glideToNextOrb(target, interactionVersion) {
@@ -30713,7 +32573,7 @@ var FreeCameraController = class {
     return this.interactionVersion;
   }
   getRewardViewDistance(kind) {
-    if (kind === "flower" || kind === "grass" || kind === "fish" || kind === "butterfly" || kind === "glow") return 125;
+    if (kind === "flower" || kind === "grass" || kind === "reed" || kind === "mushroom" || kind === "fish" || kind === "butterfly" || kind === "glow") return 125;
     if (kind === "lilyPad") return 145;
     if (kind === "bird") return 210;
     return 185;
@@ -30750,6 +32610,12 @@ var FreeCameraController = class {
       yaw: Math.atan2(direction.x, direction.z),
       pitch: MathUtils.clamp(Math.asin(direction.y), minPitch, maxPitch)
     };
+  }
+  getHorizontallyFramedLookTarget(lookTarget, from, offsetX) {
+    const direction = lookTarget.clone().sub(from).normalize();
+    const right = new Vector3().crossVectors(new Vector3(0, 1, 0), direction);
+    if (right.lengthSq() < 1e-4) right.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
+    return lookTarget.clone().addScaledVector(right.normalize(), offsetX);
   }
   shortAngleDelta(from, to) {
     return Math.atan2(Math.sin(to - from), Math.cos(to - from));
@@ -31120,6 +32986,14 @@ var RewardSystem = class {
       const p2 = this.validLandPoint(MEADOW);
       return new Vector3(p2.x, this.world.getSafeLandHeight(p2.x, p2.z), p2.z);
     }
+    if (kind === "reed") {
+      const p2 = this.validShoreLandPoint();
+      return new Vector3(p2.x, this.world.getSafeLandHeight(p2.x, p2.z), p2.z);
+    }
+    if (kind === "mushroom") {
+      const p2 = this.validLandPoint(this.rand() > 0.5 ? GARDEN : MEADOW);
+      return new Vector3(p2.x, this.world.getSafeLandHeight(p2.x, p2.z), p2.z);
+    }
     if (kind === "lilyPad") {
       const p2 = this.validWaterPoint(SHALLOW_WATER, 0.15);
       return new Vector3(p2.x, WATER_LEVEL + 1.2, p2.z);
@@ -31154,6 +33028,14 @@ var RewardSystem = class {
     } else if (kind === "grass") {
       const obj = await this.assets.clone(`aiart/${COMBO_GRASS_ASSET.file}`);
       object = this.prepareImportedAsset(obj, COMBO_GRASS_ASSET.targetSize, COMBO_GRASS_ASSET.kind);
+      object.userData.kind = kind;
+    } else if (kind === "reed") {
+      const obj = await this.assets.clone(`aiart/${COMBO_REED_ASSET.file}`);
+      object = this.prepareImportedAsset(obj, COMBO_REED_ASSET.targetSize, COMBO_REED_ASSET.kind);
+      object.userData.kind = kind;
+    } else if (kind === "mushroom") {
+      const obj = await this.assets.clone(`aiart/${COMBO_MUSHROOM_ASSET.file}`);
+      object = this.prepareImportedAsset(obj, COMBO_MUSHROOM_ASSET.targetSize, COMBO_MUSHROOM_ASSET.kind);
       object.userData.kind = kind;
     } else if (kind === "lilyPad") {
       const obj = await this.assets.clone(`aiart/${COMBO_LILY_PAD_ASSET.file}`);
@@ -31302,7 +33184,7 @@ var RewardSystem = class {
   }
   getMaterializeCue(kind) {
     if (kind === "flower") return "rewardMaterializeFlower";
-    if (kind === "grass") return "rewardMaterializeFlower";
+    if (kind === "grass" || kind === "reed" || kind === "mushroom") return "rewardMaterializeFlower";
     if (kind === "tree") return "rewardMaterializeTree";
     if (kind === "lilyPad") return "rewardMaterializeLilyPad";
     if (kind === "fish") return "rewardMaterializeFish";
@@ -31312,7 +33194,7 @@ var RewardSystem = class {
     return "rewardMaterialize";
   }
   alignRewardVisualCenter(object, kind, revealCenter) {
-    if (kind !== "flower" && kind !== "tree" && kind !== "grass") return;
+    if (kind !== "flower" && kind !== "tree" && kind !== "grass" && kind !== "reed" && kind !== "mushroom") return;
     object.updateMatrixWorld(true);
     const bounds = new Box3().setFromObject(object);
     if (bounds.isEmpty()) return;
@@ -31358,7 +33240,8 @@ var RewardSystem = class {
     if (kind === "lilyPad" || kind === "fish") return "#8ee9ff";
     if (kind === "butterfly" || kind === "bird") return "#ffe16a";
     if (kind === "glow") return "#ffd1ff";
-    if (kind === "tree" || kind === "grass") return "#b8ff79";
+    if (kind === "tree" || kind === "grass" || kind === "reed") return "#b8ff79";
+    if (kind === "mushroom") return "#ffc987";
     return "#fff08a";
   }
   createRevealBeam(kind, from, to) {
@@ -31429,8 +33312,15 @@ var RewardSystem = class {
   }
   scheduleNextOrbView(from) {
     const next = this.findNearestPendingOrb(from);
-    if (!next) return;
     const interactionVersion = this.cameraController.getInteractionVersion();
+    if (!next) {
+      if (this.pendingRewards.length > 0) return;
+      window.setTimeout(() => {
+        if (this.pendingRewards.length > 0) return;
+        this.cameraController.glideToDefaultView(interactionVersion);
+      }, 950);
+      return;
+    }
     window.setTimeout(() => {
       if (!this.pendingRewards.includes(next) || next.state !== "pendingOrb") return;
       this.cameraController.glideToNextOrb(next.orb.position, interactionVersion);
@@ -31448,6 +33338,35 @@ var RewardSystem = class {
       }
     }
     return nearest;
+  }
+  focusPendingRewardCluster() {
+    const rewards = this.pendingRewards.filter((reward) => reward.state === "pendingOrb");
+    if (rewards.length === 0) return;
+    const { center, radius } = this.findDensePendingRewardCluster(rewards);
+    this.cameraController.glideToRewardCluster(center, radius);
+  }
+  findDensePendingRewardCluster(rewards) {
+    const clusterRadius = 260;
+    let best = [rewards[0]];
+    let bestScore = -Infinity;
+    for (const anchor of rewards) {
+      const members = rewards.filter((reward) => this.rewardOrbDistanceSquared(anchor, reward) <= clusterRadius * clusterRadius);
+      const spread = members.reduce((sum, reward) => sum + Math.sqrt(this.rewardOrbDistanceSquared(anchor, reward)), 0);
+      const score = members.length * 1e4 - spread;
+      if (score > bestScore) {
+        best = members;
+        bestScore = score;
+      }
+    }
+    const center = best.reduce((sum, reward) => sum.add(reward.orb.position), new Vector3()).multiplyScalar(1 / best.length);
+    const radius = best.reduce((max, reward) => Math.max(max, this.horizontalDistance(center, reward.orb.position)), 0);
+    return { center, radius };
+  }
+  rewardOrbDistanceSquared(a, b) {
+    return (a.orb.position.x - b.orb.position.x) ** 2 + (a.orb.position.z - b.orb.position.z) ** 2;
+  }
+  horizontalDistance(a, b) {
+    return Math.hypot(a.x - b.x, a.z - b.z);
   }
   update(dt, elapsed) {
     for (const reward of this.pendingRewards) {
@@ -31534,10 +33453,10 @@ var RewardSystem = class {
   }
   pickRewardForStage() {
     const pools = [
-      ["flower", "grass", "flower", "tree"],
-      ["flower", "tree", "grass", "lilyPad"],
-      ["flower", "tree", "lilyPad", "fish", "butterfly"],
-      ["flower", "tree", "lilyPad", "fish", "butterfly", "bird", "glow"]
+      ["flower", "grass", "reed", "flower", "tree"],
+      ["flower", "tree", "grass", "reed", "mushroom", "lilyPad"],
+      ["flower", "tree", "reed", "mushroom", "lilyPad", "fish", "butterfly"],
+      ["flower", "tree", "grass", "reed", "mushroom", "lilyPad", "fish", "butterfly", "bird", "glow"]
     ];
     const pool = pools[Math.min(Math.floor(this.count / 12), pools.length - 1)];
     return pool[Math.floor(this.rand() * pool.length)];
@@ -31706,7 +33625,7 @@ var WelcomeScreen = class {
             <span class="welcome-glyph welcome-glyph-yan">\u8A00<span class="welcome-leaf welcome-leaf-a"></span></span>
             <span class="welcome-glyph welcome-glyph-yu">\u8BED<span class="welcome-leaf welcome-leaf-b"></span></span>
             <span class="welcome-glyph welcome-glyph-sheng">\u751F<span class="welcome-sprout"><span></span><span></span></span></span>
-            <span class="welcome-glyph welcome-glyph-hua">\u82B1<span class="welcome-flower"><span></span><span></span><span></span><span></span><span></span></span></span>
+            <span class="welcome-glyph welcome-glyph-hua">\u82B1<span class="welcome-flower"><span></span><span></span><span></span><span></span><span></span><span></span></span></span>
           </div>
           <div class="welcome-grass" aria-hidden="true"></div>
           <p class="welcome-subtitle"><span></span>\u7528\u8BED\u8A00\u5524\u9192\u4E16\u754C<span></span></p>
@@ -31922,6 +33841,7 @@ var Prototype = class {
   rewardSystem = null;
   natureRecipeScene = null;
   topiarySculpture = null;
+  wordBrickTower = null;
   underwaterSystem = null;
   waterMaterial = this.createWaterMaterial();
   waterMesh = null;
@@ -32003,6 +33923,7 @@ var Prototype = class {
     await this.playEnterTransition(root);
     await this.rewardSystem.restoreRewards(slot.rewards);
     this.rewardSystem.warmFishAssetsWhenIdle();
+    let currentLearningState = slot.learning;
     this.natureRecipeScene = new NatureRecipeScene({
       scene: this.scene,
       world: this.world,
@@ -32024,12 +33945,40 @@ var Prototype = class {
         focusOn: (target) => this.cameraController.glideToReward(target, "tree", 58)
       });
     }
+    if (WORD_BRICK_TOWER_ENABLED) {
+      const towerX = WORD_BRICK_TOWER_POSITION.x;
+      const towerZ = WORD_BRICK_TOWER_POSITION.z;
+      this.wordBrickTower = mountWordBrickTowerModule({
+        root,
+        scene: this.scene,
+        canvas: this.canvas,
+        camera: this.camera,
+        world: this.world,
+        position: new Vector3(towerX, this.world.getSafeLandHeight(towerX, towerZ), towerZ),
+        saveSlotId: slot.id,
+        audio: this.sound,
+        buildRatio: WORD_BRICK_TOWER_PREVIEW_BUILD_RATIO,
+        scale: WORD_BRICK_TOWER_PREVIEW_SCALE,
+        getLearningState: () => currentLearningState,
+        focusOn: (target) => this.cameraController.glideToReward(
+          target,
+          "tree",
+          WORD_BRICK_TOWER_FOCUS_HEIGHT_OFFSET,
+          WORD_BRICK_TOWER_FOCUS_VIEW_DISTANCE,
+          WORD_BRICK_TOWER_FOCUS_SCREEN_OFFSET_X
+        )
+      });
+    }
     mountWordLearningModule(
       root,
       (kind) => this.rewardSystem?.spawnReward(kind, { focusCamera: false }),
       slot.learning,
-      (state) => this.saveManager.updateLearning(state),
-      this.sound
+      (state) => {
+        currentLearningState = state;
+        this.saveManager.updateLearning(state);
+      },
+      this.sound,
+      () => this.rewardSystem?.focusPendingRewardCluster()
     );
   }
   async playEnterTransition(root) {
@@ -32100,6 +34049,8 @@ var Prototype = class {
       if (event.code === "Digit4") void this.rewardSystem?.spawnReward("fish");
       if (event.code === "Digit5") void this.rewardSystem?.spawnReward("butterfly");
       if (event.code === "Digit6") void this.rewardSystem?.spawnReward("bird");
+      if (event.code === "Digit7") void this.rewardSystem?.spawnReward("reed");
+      if (event.code === "Digit8") void this.rewardSystem?.spawnReward("mushroom");
       if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "KeyW", "KeyA", "KeyS", "KeyD"].includes(event.code)) {
         event.preventDefault();
       }
@@ -32811,6 +34762,7 @@ var Prototype = class {
     this.rewardSystem?.update(dt, elapsed);
     this.natureRecipeScene?.update(dt, elapsed);
     this.topiarySculpture?.update(dt, elapsed);
+    this.wordBrickTower?.update(dt, elapsed);
     this.underwaterSystem?.update(dt, elapsed);
     this.waterMaterial.normalMap.offset.x += dt * 0.015;
     this.waterMaterial.normalMap.offset.y += dt * 0.01;
