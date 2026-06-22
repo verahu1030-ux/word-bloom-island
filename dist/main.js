@@ -31425,6 +31425,13 @@ var SaveManager = class {
     this.persist();
     return cloneSlot(slot);
   }
+  renameSlot(slotId, name) {
+    const slot = this.findSlot(slotId);
+    if (!slot) return null;
+    slot.name = sanitizeName(name);
+    this.persist();
+    return cloneSlot(slot);
+  }
   updateLearning(state) {
     const slot = this.getActiveSlot();
     if (!slot) return;
@@ -33542,6 +33549,8 @@ var WelcomeScreen = class {
   }
   overlay = document.createElement("section");
   selectedSlotId = null;
+  editingSlotId = null;
+  saveSelectTimer = null;
   isNewGameSelected = false;
   mode = "default";
   show() {
@@ -33567,6 +33576,8 @@ var WelcomeScreen = class {
   initializeSelection() {
     const defaultSlot = this.saveManager.getSlots()[0];
     this.selectedSlotId = defaultSlot?.id ?? null;
+    this.editingSlotId = null;
+    this.clearSaveSelectTimer();
     this.isNewGameSelected = !defaultSlot;
     this.mode = "default";
   }
@@ -33611,7 +33622,7 @@ var WelcomeScreen = class {
       entry.append(this.createActions(slots, resolve));
     }
     entryRoot.append(entry);
-    enter.focus();
+    if (!this.editingSlotId) enter.focus();
   }
   ensureFrame() {
     if (this.overlay.querySelector(".welcome-content")) return;
@@ -33691,20 +33702,48 @@ var WelcomeScreen = class {
     const list = document.createElement("div");
     list.className = "welcome-save-list";
     for (const slot of slots) {
-      const item = document.createElement("button");
+      const item = document.createElement("div");
       item.className = "welcome-save-row";
       if (slot.id === this.selectedSlotId) item.classList.add("is-selected");
-      item.type = "button";
+      item.tabIndex = 0;
+      item.setAttribute("role", "button");
       item.setAttribute("aria-pressed", String(slot.id === this.selectedSlotId));
-      const name2 = document.createElement("strong");
-      name2.textContent = slot.name;
+      const isEditing = this.editingSlotId === slot.id;
+      const name2 = isEditing ? this.createSaveNameInput(slot, resolve) : document.createElement("strong");
+      if (!isEditing) {
+        name2.textContent = slot.name;
+        name2.addEventListener("dblclick", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          this.clearSaveSelectTimer();
+          this.selectedSlotId = slot.id;
+          this.isNewGameSelected = false;
+          this.editingSlotId = slot.id;
+          this.render(resolve);
+        });
+      }
       const stats2 = document.createElement("span");
       stats2.textContent = `${slot.learning.learnedWordIds.length} \u5B57 \xB7 ${slot.rewards.length} \u5956\u52B1`;
       item.append(name2, stats2);
-      item.addEventListener("click", () => {
+      item.addEventListener("click", (event) => {
+        if (event.detail > 1) return;
+        this.clearSaveSelectTimer();
+        this.saveSelectTimer = window.setTimeout(() => {
+          this.saveSelectTimer = null;
+          this.onUiSound("uiTap");
+          this.selectedSlotId = slot.id;
+          this.isNewGameSelected = false;
+          this.editingSlotId = null;
+          this.render(resolve);
+        }, 180);
+      });
+      item.addEventListener("keydown", (event) => {
+        if (event.target !== item || event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
         this.onUiSound("uiTap");
         this.selectedSlotId = slot.id;
         this.isNewGameSelected = false;
+        this.editingSlotId = null;
         this.render(resolve);
       });
       list.append(item);
@@ -33722,10 +33761,48 @@ var WelcomeScreen = class {
     newGame.addEventListener("click", () => {
       this.onUiSound("uiTap");
       this.isNewGameSelected = true;
+      this.editingSlotId = null;
       this.render(resolve);
     });
     list.append(newGame);
     return list;
+  }
+  createSaveNameInput(slot, resolve) {
+    const input = document.createElement("input");
+    input.className = "welcome-save-name-input";
+    input.type = "text";
+    input.value = slot.name;
+    input.autocomplete = "off";
+    input.setAttribute("aria-label", "\u5B58\u6863\u540D");
+    input.addEventListener("click", (event) => event.stopPropagation());
+    input.addEventListener("dblclick", (event) => event.stopPropagation());
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        const renamed = this.saveManager.renameSlot(slot.id, input.value);
+        if (!renamed) return;
+        this.onUiSound("uiTap");
+        this.selectedSlotId = renamed.id;
+        this.isNewGameSelected = false;
+        this.editingSlotId = null;
+        this.render(resolve);
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        this.editingSlotId = null;
+        this.render(resolve);
+      }
+    });
+    window.setTimeout(() => {
+      input.focus();
+      input.select();
+    }, 0);
+    return input;
+  }
+  clearSaveSelectTimer() {
+    if (this.saveSelectTimer === null) return;
+    window.clearTimeout(this.saveSelectTimer);
+    this.saveSelectTimer = null;
   }
   resolveSelectedSlot() {
     if (this.isNewGameSelected || !this.selectedSlotId) {
@@ -33853,6 +33930,7 @@ var Prototype = class {
   loadingStartedAt = performance.now();
   loadingProgress = { itemsLoaded: 0, itemsTotal: 1 };
   loadingTimer = null;
+  loadingExpectedSeconds = 24;
   constructor() {
     this.assets.setProgressCallback((itemsLoaded, itemsTotal) => this.setLoadingProgress(itemsLoaded, itemsTotal));
     this.setLoadingProgress(0, 1);
@@ -34761,14 +34839,20 @@ var Prototype = class {
     const fill = loading2.querySelector(".loading-fill");
     const meta = loading2.querySelector(".loading-meta");
     const ratio = MathUtils.clamp(itemsTotal > 0 ? itemsLoaded / itemsTotal : 0, 0, 1);
-    const visibleRatio = Math.max(ratio, 0.08);
-    const percent = Math.round(ratio * 100);
     const elapsedSeconds = (performance.now() - this.loadingStartedAt) / 1e3;
-    const estimatedTotalSeconds = Math.max(10, elapsedSeconds / Math.max(ratio, 0.08));
-    const remainingSeconds = Math.max(1, Math.ceil(estimatedTotalSeconds - elapsedSeconds));
+    const timeRatio = MathUtils.clamp(elapsedSeconds / this.loadingExpectedSeconds, 0, 0.92);
+    const visibleRatio = ratio >= 1 ? 1 : Math.max(ratio, timeRatio, 0.08);
+    const percent = Math.round(visibleRatio * 100);
     if (fill) fill.style.width = `${Math.round(visibleRatio * 100)}%`;
     track?.setAttribute("aria-valuenow", String(percent));
-    if (meta) meta.textContent = ratio >= 1 ? "\u9A6C\u4E0A\u8FDB\u5165 \xB7 100%" : `\u9884\u8BA1\u7EA6 ${remainingSeconds} \u79D2 \xB7 ${percent}%`;
+    if (meta) meta.textContent = this.getLoadingExpectationText(elapsedSeconds, ratio);
+  }
+  getLoadingExpectationText(elapsedSeconds, ratio) {
+    if (ratio >= 1) return "\u9A6C\u4E0A\u8FDB\u5165";
+    if (elapsedSeconds < 7) return "\u9884\u8BA1 20-30 \u79D2\u8FDB\u5165";
+    if (elapsedSeconds < 18) return "\u6B63\u5728\u51C6\u5907\u5C9B\u5C7F\u8D44\u6E90";
+    if (elapsedSeconds < 30) return "\u5373\u5C06\u5B8C\u6210\uFF0C\u8BF7\u7A0D\u7B49";
+    return "\u8D44\u6E90\u8F83\u591A\uFF0C\u8BF7\u518D\u7B49\u4E00\u4E0B";
   }
   updateSoftWater(elapsed) {
     if (!this.animatedWaterSurface) return;
