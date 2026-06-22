@@ -29073,7 +29073,6 @@ var TopiarySculptureOverlay = class {
     const rect = this.canvas.getBoundingClientRect();
     const width = rect.width || this.canvas.width;
     const height = rect.height || this.canvas.height;
-    const frame = this.getArtworkFrame(width, height);
     this.ctx.clearRect(0, 0, width, height);
     this.ctx.lineWidth = 8;
     this.ctx.lineCap = "round";
@@ -29081,7 +29080,7 @@ var TopiarySculptureOverlay = class {
     this.ctx.strokeStyle = "#3f7544";
     this.strokes.forEach((stroke) => {
       if (stroke.length === 0) return;
-      this.drawStrokePath(this.ctx, stroke, frame.x, frame.y, frame.size, frame.size);
+      this.drawStrokePath(this.ctx, stroke, 0, 0, width, height);
       this.ctx.stroke();
     });
     this.panel.querySelector(".topiary-pad-hint")?.classList.toggle("is-hidden", this.strokes.flat().length > 0);
@@ -29095,10 +29094,9 @@ var TopiarySculptureOverlay = class {
     ctx.lineWidth = 7;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    const frame = this.getArtworkFrame(canvas.width, canvas.height);
     strokes.forEach((stroke) => {
       if (stroke.length === 0) return;
-      this.drawStrokePath(ctx, stroke, frame.x, frame.y, frame.size, frame.size);
+      this.drawStrokePath(ctx, stroke, 0, 0, canvas.width, canvas.height);
       ctx.stroke();
     });
   }
@@ -29147,14 +29145,6 @@ var TopiarySculptureOverlay = class {
     const last = points[points.length - 1];
     ctx.lineTo(offsetX + last.x * width, offsetY + last.y * height);
   }
-  getArtworkFrame(width, height) {
-    const size = Math.min(width, height);
-    return {
-      x: (width - size) / 2,
-      y: (height - size) / 2,
-      size
-    };
-  }
   intentDistance(a, b) {
     return Math.hypot(a.x - b.x, a.y - b.y);
   }
@@ -29182,10 +29172,9 @@ var TopiarySculptureOverlay = class {
   }
   pointFromEvent(event) {
     const rect = this.canvas.getBoundingClientRect();
-    const frame = this.getArtworkFrame(rect.width, rect.height);
     return {
-      x: Math.min(1, Math.max(0, (event.clientX - rect.left - frame.x) / frame.size)),
-      y: Math.min(1, Math.max(0, (event.clientY - rect.top - frame.y) / frame.size))
+      x: Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)),
+      y: Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height))
     };
   }
   loadSampleWindmill() {
@@ -32292,6 +32281,11 @@ var AssetLibrary = class {
   constructor() {
     this.manager.setURLModifier((url) => getStandaloneAssetUrl(this.standaloneKeyForUrl(url)) ?? url);
   }
+  setProgressCallback(callback) {
+    this.manager.onStart = (_url, itemsLoaded, itemsTotal) => callback(itemsLoaded, itemsTotal);
+    this.manager.onProgress = (_url, itemsLoaded, itemsTotal) => callback(itemsLoaded, itemsTotal);
+    this.manager.onLoad = () => callback(1, 1);
+  }
   load(file) {
     if (!this.cache.has(file)) {
       this.cache.set(
@@ -33856,6 +33850,16 @@ var Prototype = class {
   waterShimmers = [];
   hoverWindTrail = null;
   testToolsEnabled = isTestToolsRequested();
+  loadingStartedAt = performance.now();
+  loadingProgress = { itemsLoaded: 0, itemsTotal: 1 };
+  loadingTimer = null;
+  constructor() {
+    this.assets.setProgressCallback((itemsLoaded, itemsTotal) => this.setLoadingProgress(itemsLoaded, itemsTotal));
+    this.setLoadingProgress(0, 1);
+    this.loadingTimer = window.setInterval(() => {
+      this.updateLoadingProgress(this.loadingProgress.itemsLoaded, this.loadingProgress.itemsTotal);
+    }, 250);
+  }
   async start() {
     const root = document.querySelector("#app");
     this.setupRenderer();
@@ -34737,9 +34741,34 @@ var Prototype = class {
     return { x: -610, z: -110 };
   }
   finishLoading() {
+    this.setLoadingProgress(1, 1);
+    if (this.loadingTimer !== null) {
+      window.clearInterval(this.loadingTimer);
+      this.loadingTimer = null;
+    }
     const loading2 = document.querySelector("#loading");
     loading2?.classList.add("done");
     window.setTimeout(() => loading2?.remove(), 460);
+  }
+  setLoadingProgress(itemsLoaded, itemsTotal) {
+    this.loadingProgress = { itemsLoaded, itemsTotal };
+    this.updateLoadingProgress(itemsLoaded, itemsTotal);
+  }
+  updateLoadingProgress(itemsLoaded, itemsTotal) {
+    const loading2 = document.querySelector("#loading");
+    if (!loading2) return;
+    const track = loading2.querySelector(".loading-track");
+    const fill = loading2.querySelector(".loading-fill");
+    const meta = loading2.querySelector(".loading-meta");
+    const ratio = MathUtils.clamp(itemsTotal > 0 ? itemsLoaded / itemsTotal : 0, 0, 1);
+    const visibleRatio = Math.max(ratio, 0.08);
+    const percent = Math.round(ratio * 100);
+    const elapsedSeconds = (performance.now() - this.loadingStartedAt) / 1e3;
+    const estimatedTotalSeconds = Math.max(10, elapsedSeconds / Math.max(ratio, 0.08));
+    const remainingSeconds = Math.max(1, Math.ceil(estimatedTotalSeconds - elapsedSeconds));
+    if (fill) fill.style.width = `${Math.round(visibleRatio * 100)}%`;
+    track?.setAttribute("aria-valuenow", String(percent));
+    if (meta) meta.textContent = ratio >= 1 ? "\u9A6C\u4E0A\u8FDB\u5165 \xB7 100%" : `\u9884\u8BA1\u7EA6 ${remainingSeconds} \u79D2 \xB7 ${percent}%`;
   }
   updateSoftWater(elapsed) {
     if (!this.animatedWaterSurface) return;
