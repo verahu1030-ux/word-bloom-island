@@ -32012,6 +32012,10 @@ var WATER_LEVEL = 0;
 var wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
 var runtimeWindow = window;
 runtimeWindow.createImageBitmap = void 0;
+var isTestToolsRequested = () => {
+  const params = new URLSearchParams(window.location.search);
+  return runtimeWindow.__V7_TEST_TOOLS_ENABLED__ !== false && params.get("testTools") !== "0" && params.get("debugTools") !== "0";
+};
 var VISUAL_STYLE = getActiveVisualStyle();
 var TERRAIN_COLORS = {
   shadow: new Color(VISUAL_STYLE.terrain.shadow),
@@ -33851,6 +33855,7 @@ var Prototype = class {
   animatedWaterSurface = null;
   waterShimmers = [];
   hoverWindTrail = null;
+  testToolsEnabled = isTestToolsRequested();
   async start() {
     const root = document.querySelector("#app");
     this.setupRenderer();
@@ -34034,6 +34039,15 @@ var Prototype = class {
     document.querySelectorAll(".hud").forEach((element) => {
       element.dataset.gameUi = "true";
     });
+    runtimeWindow.setV7TestToolsEnabled = (enabled) => this.setTestToolsEnabled(enabled);
+    runtimeWindow.enableV7TestTools = () => this.setTestToolsEnabled(true);
+    runtimeWindow.disableV7TestTools = () => this.setTestToolsEnabled(false);
+    this.setTestToolsEnabled(this.testToolsEnabled);
+  }
+  setTestToolsEnabled(enabled) {
+    this.testToolsEnabled = enabled;
+    runtimeWindow.__V7_TEST_TOOLS_ENABLED__ = enabled;
+    document.body.classList.toggle("test-tools-enabled", enabled);
   }
   bindInput() {
     window.addEventListener("resize", this.resize);
@@ -34041,16 +34055,18 @@ var Prototype = class {
       if (this.isGameModalActive()) return;
       if (this.isGameUiTarget(event.target)) return;
       this.keys.add(event.code);
-      if (event.code === "KeyM") this.debugLayer.visible = !this.debugLayer.visible;
-      if (event.code === "KeyR") void this.rewardSystem?.spawnReward();
-      if (event.code === "Digit1") void this.rewardSystem?.spawnReward("flower");
-      if (event.code === "Digit2") void this.rewardSystem?.spawnReward("tree");
-      if (event.code === "Digit3") void this.rewardSystem?.spawnReward("lilyPad");
-      if (event.code === "Digit4") void this.rewardSystem?.spawnReward("fish");
-      if (event.code === "Digit5") void this.rewardSystem?.spawnReward("butterfly");
-      if (event.code === "Digit6") void this.rewardSystem?.spawnReward("bird");
-      if (event.code === "Digit7") void this.rewardSystem?.spawnReward("reed");
-      if (event.code === "Digit8") void this.rewardSystem?.spawnReward("mushroom");
+      if (this.testToolsEnabled) {
+        if (event.code === "KeyM") this.debugLayer.visible = !this.debugLayer.visible;
+        if (event.code === "KeyR") void this.rewardSystem?.spawnReward();
+        if (event.code === "Digit1") void this.rewardSystem?.spawnReward("flower");
+        if (event.code === "Digit2") void this.rewardSystem?.spawnReward("tree");
+        if (event.code === "Digit3") void this.rewardSystem?.spawnReward("lilyPad");
+        if (event.code === "Digit4") void this.rewardSystem?.spawnReward("fish");
+        if (event.code === "Digit5") void this.rewardSystem?.spawnReward("butterfly");
+        if (event.code === "Digit6") void this.rewardSystem?.spawnReward("bird");
+        if (event.code === "Digit7") void this.rewardSystem?.spawnReward("reed");
+        if (event.code === "Digit8") void this.rewardSystem?.spawnReward("mushroom");
+      }
       if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "KeyW", "KeyA", "KeyS", "KeyD"].includes(event.code)) {
         event.preventDefault();
       }
