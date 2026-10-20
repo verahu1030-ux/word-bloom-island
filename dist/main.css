@@ -503,6 +503,7 @@ body,
   outline: none;
 }
 .welcome-save-list {
+  box-sizing: border-box;
   display: grid;
   gap: 8px;
   width: 100%;
@@ -513,12 +514,14 @@ body,
   background: rgba(237, 248, 223, 0.16);
   box-shadow: 0 20px 44px rgba(19, 43, 29, 0.16);
   backdrop-filter: blur(8px);
+  max-height: 220px;
+  overflow-y: auto;
 }
 .welcome-save-list::before {
   display: block;
   margin-bottom: 2px;
   color: #f8ffe8;
-  content: "\9009\62e9\8981\8fdb\5165\7684\4e16\754c";
+  content: "\9009\62e9\4f60\7684\73a9\5bb6";
   font-size: 0.92rem;
   font-weight: 700;
   text-shadow: 0 4px 12px rgba(16, 39, 28, 0.34);
@@ -599,6 +602,94 @@ body,
 }
 .welcome-leaving {
   animation: welcome-fade-out 420ms ease-in forwards;
+}
+.welcome-player-name {
+  box-sizing: border-box;
+  width: min(280px, 100%);
+  min-height: 44px;
+  margin-bottom: 12px;
+  padding: 10px 16px;
+  border: 1px solid #d7edc1;
+  border-radius: 16px;
+  background: #fffdf4;
+  color: #28583a;
+  font: inherit;
+  text-align: center;
+}
+.welcome-local-note,
+.welcome-player-error {
+  width: min(360px, calc(100vw - 48px));
+  margin: 10px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.welcome-player-error {
+  color: #fff0ae;
+}
+.welcome-player-error:empty {
+  display: none;
+}
+.welcome-save-actions {
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+.welcome-save-actions button + button::before {
+  content: none;
+}
+.welcome-screen {
+  overflow-y: auto;
+}
+.welcome-content {
+  margin: auto;
+}
+.welcome-content:has(.is-selecting) {
+  transform: none;
+}
+.welcome-content:has(.is-selecting) .welcome-title {
+  font-size: clamp(3.4rem, 10vw, 7rem);
+}
+.welcome-content:has(.is-selecting) .welcome-logo {
+  padding-top: 8px;
+}
+.welcome-selected {
+  max-width: min(360px, calc(100vw - 48px));
+  overflow-wrap: anywhere;
+}
+.player-status {
+  position: fixed;
+  top: 132px;
+  left: 28px;
+  z-index: 12;
+  display: grid;
+  gap: 6px;
+  max-width: min(240px, calc(100vw - 32px));
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(250, 255, 240, 0.92);
+  color: #295436;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.player-status button {
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 1px solid #bfd5b1;
+  border-radius: 10px;
+  background: #fffdf4;
+  color: inherit;
+  cursor: pointer;
+}
+.player-status.has-save-error {
+  background: #fff0d5;
+  color: #713a19;
+}
+@media (max-width: 720px) {
+  .player-status {
+    top: 112px;
+    left: 16px;
+    max-width: 190px;
+  }
 }
 .welcome-transition-wind {
   position: fixed;

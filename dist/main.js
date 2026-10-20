@@ -28831,6 +28831,59 @@ var TOPIARY_WINDMILL_STROKES = [
   blobStroke(0.5, 0.45, 0.066, 0.066, 0, 36)
 ];
 
+// src/localProgress.ts
+var pendingWrites = /* @__PURE__ */ new Map();
+var LOCAL_PROGRESS_EVENT = "v7-local-progress";
+var hasUnsavedProgress = () => pendingWrites.size > 0;
+function writeLocalProgress(key, value) {
+  pendingWrites.set(key, value);
+  try {
+    window.localStorage.setItem(key, value);
+    pendingWrites.delete(key);
+  } catch {
+  }
+  window.dispatchEvent(new Event(LOCAL_PROGRESS_EVENT));
+  return !pendingWrites.has(key);
+}
+function retryLocalProgress() {
+  for (const [key, value] of [...pendingWrites]) writeLocalProgress(key, value);
+  return !hasUnsavedProgress();
+}
+function mountPlayerStatus(root, name) {
+  const panel = document.createElement("div");
+  panel.className = "player-status";
+  panel.dataset.gameUi = "true";
+  const player = document.createElement("strong");
+  player.textContent = name;
+  const status = document.createElement("span");
+  status.setAttribute("role", "status");
+  const retry = document.createElement("button");
+  retry.type = "button";
+  retry.textContent = "\u91CD\u8BD5\u4FDD\u5B58";
+  retry.addEventListener("click", () => retryLocalProgress());
+  const change = document.createElement("button");
+  change.type = "button";
+  change.textContent = "\u5207\u6362\u73A9\u5BB6";
+  change.addEventListener("click", () => {
+    if (retryLocalProgress()) window.location.reload();
+  });
+  const update = () => {
+    const failed = hasUnsavedProgress();
+    panel.classList.toggle("has-save-error", failed);
+    status.textContent = failed ? "\u8FDB\u5EA6\u672A\u4FDD\u5B58\uFF0C\u8BF7\u91CD\u8BD5\uFF0C\u6682\u52FF\u5173\u95ED\u9875\u9762" : "\u8FDB\u5EA6\u5DF2\u4FDD\u5B58\u5728\u6B64\u6D4F\u89C8\u5668";
+    retry.hidden = !failed;
+  };
+  window.addEventListener(LOCAL_PROGRESS_EVENT, update);
+  window.addEventListener("beforeunload", (event) => {
+    if (!hasUnsavedProgress() || retryLocalProgress()) return;
+    event.preventDefault();
+    event.returnValue = "";
+  });
+  update();
+  panel.append(player, status, retry, change);
+  root.append(panel);
+}
+
 // src/topiary-sculpture/TopiarySculptureOverlay.ts
 var cloneStrokes = (strokes) => strokes.map((stroke) => stroke.map((point) => ({ ...point })));
 var TOPIARY_ENTRY_ICON_SRC = getRuntimeAssetUrl("assets/ui/topiary-entry-icon.png", "v=topiary-entry-icon-3");
@@ -29665,7 +29718,7 @@ var loadState = (slotId) => {
   }
 };
 var saveState = (slotId, state) => {
-  window.localStorage.setItem(storageKeyForSlot(slotId), JSON.stringify(cloneState(state)));
+  writeLocalProgress(storageKeyForSlot(slotId), JSON.stringify(cloneState(state)));
 };
 function mountTopiarySculptureModule(options) {
   let overlay;
@@ -31329,7 +31382,7 @@ var loadState2 = (slotId, createDailyRounds) => {
   }
 };
 var saveState2 = (slotId, state) => {
-  window.localStorage.setItem(storageKeyForSlot2(slotId), JSON.stringify(cloneState2(state)));
+  writeLocalProgress(storageKeyForSlot2(slotId), JSON.stringify(cloneState2(state)));
 };
 function mountWordBrickTowerModule(options) {
   let overlay;
@@ -31396,25 +31449,41 @@ var sanitizeName = (name) => {
 var getEmbeddedDemoSavePayload = () => window.__V7_EMBEDDED_DEMO_SAVE__ ?? null;
 var SaveManager = class {
   store;
+  loadError = "";
   constructor() {
     this.store = this.load();
   }
   getSlots() {
     return [...this.store.slots].sort((a, b) => b.updatedAt - a.updatedAt).map(cloneSlot);
   }
+  getLoadError() {
+    return this.loadError;
+  }
   createSlot(name) {
+    if (this.loadError) throw new Error(this.loadError);
+    const playerName = name.trim().slice(0, 24);
+    if (!playerName) throw new Error("\u8BF7\u5148\u586B\u5199\u73A9\u5BB6\u6635\u79F0\u3002");
+    if (this.store.slots.some((slot2) => slot2.name === playerName)) {
+      throw new Error("\u5DF2\u6709\u540C\u540D\u73A9\u5BB6\uFF0C\u8BF7\u9009\u62E9\u201C\u5207\u6362\u73A9\u5BB6\u201D\u7EE7\u7EED\u539F\u6765\u7684\u8FDB\u5EA6\u3002");
+    }
     const now2 = Date.now();
     const slot = {
       id: `save-${now2}-${Math.floor(Math.random() * 1e5)}`,
-      name: sanitizeName(name),
+      name: playerName,
       createdAt: now2,
       updatedAt: now2,
       learning: createInitialWordLearningState(),
       rewards: []
     };
+    const previousActiveId = this.store.activeSlotId;
     this.store.slots.push(slot);
     this.store.activeSlotId = slot.id;
-    this.persist();
+    if (!this.persist()) {
+      this.store.slots.pop();
+      this.store.activeSlotId = previousActiveId;
+      this.persist();
+      throw new Error("\u65E0\u6CD5\u4FDD\u5B58\u73A9\u5BB6\uFF0C\u8BF7\u5141\u8BB8\u6B64\u7F51\u7AD9\u4FDD\u5B58\u672C\u5730\u6570\u636E\u540E\u91CD\u8BD5\u3002");
+    }
     return cloneSlot(slot);
   }
   selectSlot(slotId) {
@@ -31446,6 +31515,10 @@ var SaveManager = class {
     slot.updatedAt = Date.now();
     this.persist();
   }
+  getSelectedSlot() {
+    const slot = this.getActiveSlot();
+    return slot ? cloneSlot(slot) : null;
+  }
   getActiveSlot() {
     if (!this.store.activeSlotId) return null;
     return this.findSlot(this.store.activeSlotId);
@@ -31464,6 +31537,7 @@ var SaveManager = class {
         };
       }
     } catch {
+      this.loadError = "\u65E0\u6CD5\u8BFB\u53D6\u672C\u5730\u8FDB\u5EA6\u3002\u8BF7\u68C0\u67E5\u6D4F\u89C8\u5668\u7684\u7F51\u7AD9\u6570\u636E\u6743\u9650\uFF1B\u539F\u5B58\u6863\u4E0D\u4F1A\u88AB\u8986\u76D6\u3002";
       return { activeSlotId: null, slots: [] };
     }
     const embeddedStore = this.createStoreFromEmbeddedDemoSave();
@@ -31536,7 +31610,8 @@ var SaveManager = class {
     };
   }
   persist() {
-    window.localStorage.setItem(SAVE_KEY, JSON.stringify(this.store));
+    if (this.loadError) return false;
+    return writeLocalProgress(SAVE_KEY, JSON.stringify(this.store));
   }
 };
 
@@ -33552,6 +33627,7 @@ var WelcomeScreen = class {
   editingSlotId = null;
   saveSelectTimer = null;
   isNewGameSelected = false;
+  newPlayerName = "";
   mode = "default";
   show() {
     return new Promise((resolve) => {
@@ -33574,7 +33650,7 @@ var WelcomeScreen = class {
     this.overlay.addEventListener("keydown", wake, { capture: true, once: true });
   }
   initializeSelection() {
-    const defaultSlot = this.saveManager.getSlots()[0];
+    const defaultSlot = this.saveManager.getSelectedSlot() ?? this.saveManager.getSlots()[0];
     this.selectedSlotId = defaultSlot?.id ?? null;
     this.editingSlotId = null;
     this.clearSaveSelectTimer();
@@ -33595,8 +33671,27 @@ var WelcomeScreen = class {
     if (this.mode === "select") entry.classList.add("is-selecting");
     const label = document.createElement("div");
     label.className = "welcome-selected";
-    label.textContent = this.isNewGameSelected ? "\u65B0\u7684\u4E16\u754C" : `\u7EE7\u7EED\uFF1A${selectedSlot?.name ?? "\u4E0A\u4E00\u6B21\u7684\u4E16\u754C"}`;
+    label.textContent = this.isNewGameSelected ? "\u521B\u5EFA\u672C\u5730\u73A9\u5BB6" : `\u6B22\u8FCE\u56DE\u6765\uFF0C${selectedSlot?.name ?? "\u5C0F\u73A9\u5BB6"}`;
     entry.append(label);
+    if (this.isNewGameSelected) {
+      const input = document.createElement("input");
+      input.className = "welcome-player-name";
+      input.placeholder = "\u8F93\u5165\u4F60\u7684\u6635\u79F0";
+      input.setAttribute("aria-label", "\u73A9\u5BB6\u6635\u79F0");
+      input.maxLength = 24;
+      input.value = this.newPlayerName;
+      input.autocomplete = "off";
+      input.addEventListener("input", () => {
+        this.newPlayerName = input.value;
+      });
+      input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !event.isComposing) {
+          event.preventDefault();
+          entry.querySelector(".welcome-enter")?.click();
+        }
+      });
+      entry.append(input);
+    }
     if (this.mode === "select") {
       entry.append(this.createSaveList(slots, resolve));
     }
@@ -33604,23 +33699,19 @@ var WelcomeScreen = class {
     entry.append(enter);
     const meta = document.createElement("div");
     meta.className = "welcome-save-meta";
-    meta.textContent = this.isNewGameSelected || !selectedSlot ? "\u4ECE\u7B2C\u4E00\u4E2A\u8BCD\u5F00\u59CB" : `${selectedSlot.learning.learnedWordIds.length} \u4E2A\u5B57 \xB7 ${selectedSlot.rewards.length} \u4E2A\u5956\u52B1`;
+    meta.textContent = this.isNewGameSelected || !selectedSlot ? "\u6635\u79F0\u7528\u4E8E\u533A\u5206\u8FD9\u53F0\u8BBE\u5907\u4E0A\u7684\u73A9\u5BB6\uFF0C\u65E0\u9700\u5BC6\u7801" : `${selectedSlot.learning.learnedWordIds.length} \u4E2A\u5B57 \xB7 ${selectedSlot.rewards.length} \u4E2A\u5956\u52B1`;
     entry.append(meta);
-    if (slots.length > 0 && this.mode === "default") {
-      const more = document.createElement("button");
-      more.className = "welcome-more";
-      more.type = "button";
-      more.textContent = "\u66F4\u591A\u5165\u53E3";
-      more.addEventListener("click", () => {
-        this.onUiSound("uiPanelOpen");
-        this.mode = "more";
-        this.render(resolve);
-      });
-      entry.append(more);
-    }
-    if (slots.length > 0 && this.mode === "more") {
+    if (slots.length > 0) {
       entry.append(this.createActions(slots, resolve));
     }
+    const note = document.createElement("p");
+    note.className = "welcome-local-note";
+    note.textContent = "\u8FDB\u5EA6\u81EA\u52A8\u4FDD\u5B58\u5728\u5F53\u524D\u6D4F\u89C8\u5668\u3002\u8BF7\u4F7F\u7528\u540C\u4E00\u6D4F\u89C8\u5668\u548C\u7F51\u5740\uFF0C\u907F\u514D\u65E0\u75D5\u6A21\u5F0F\u6216\u6E05\u9664\u7F51\u7AD9\u6570\u636E\u3002";
+    const error = document.createElement("p");
+    error.className = "welcome-player-error";
+    error.setAttribute("role", "alert");
+    error.textContent = this.saveManager.getLoadError();
+    entry.append(note, error);
     entryRoot.append(entry);
     if (!this.editingSlotId) enter.focus();
   }
@@ -33647,12 +33738,17 @@ var WelcomeScreen = class {
     const enter = document.createElement("button");
     enter.className = "welcome-enter";
     enter.type = "button";
-    enter.textContent = "\u8FDB\u5165\u4E16\u754C";
+    enter.textContent = this.isNewGameSelected ? "\u521B\u5EFA\u5E76\u8FDB\u5165" : "\u7EE7\u7EED\u6E38\u620F";
     enter.addEventListener("click", () => {
-      const slot = this.resolveSelectedSlot();
-      this.onEnterWorld();
-      this.close();
-      resolve(slot);
+      try {
+        const slot = this.resolveSelectedSlot();
+        this.onEnterWorld();
+        this.close();
+        resolve(slot);
+      } catch (error) {
+        const message = this.overlay.querySelector(".welcome-player-error");
+        if (message) message.textContent = error instanceof Error ? error.message : "\u6682\u65F6\u65E0\u6CD5\u8BFB\u53D6\u73A9\u5BB6\u8FDB\u5EA6\uFF0C\u8BF7\u91CD\u8BD5\u3002";
+      }
     });
     return enter;
   }
@@ -33661,7 +33757,7 @@ var WelcomeScreen = class {
     actions.className = "welcome-save-actions";
     const newGame = document.createElement("button");
     newGame.type = "button";
-    newGame.textContent = "\u65B0\u6E38\u620F";
+    newGame.textContent = "\u6DFB\u52A0\u73A9\u5BB6";
     newGame.setAttribute("aria-pressed", String(this.isNewGameSelected));
     newGame.addEventListener("click", () => {
       this.onUiSound("uiTap");
@@ -33673,7 +33769,7 @@ var WelcomeScreen = class {
     if (this.isNewGameSelected) {
       const recent = document.createElement("button");
       recent.type = "button";
-      recent.textContent = "\u7EE7\u7EED\u4E0A\u4E00\u6B21";
+      recent.textContent = "\u8FD4\u56DE\u539F\u73A9\u5BB6";
       recent.addEventListener("click", () => {
         this.onUiSound("uiTap");
         this.isNewGameSelected = false;
@@ -33683,10 +33779,10 @@ var WelcomeScreen = class {
       });
       actions.append(recent);
     }
-    if (slots.length > 1) {
+    if (slots.length > 0) {
       const choose = document.createElement("button");
       choose.type = "button";
-      choose.textContent = "\u9009\u62E9\u5B58\u6863";
+      choose.textContent = "\u5207\u6362\u73A9\u5BB6";
       choose.setAttribute("aria-expanded", "false");
       choose.addEventListener("click", () => {
         this.onUiSound("uiPanelOpen");
@@ -33695,6 +33791,17 @@ var WelcomeScreen = class {
         this.render(resolve);
       });
       actions.append(choose);
+    }
+    if (!this.isNewGameSelected && this.selectedSlotId) {
+      const rename = document.createElement("button");
+      rename.type = "button";
+      rename.textContent = "\u6539\u6635\u79F0";
+      rename.addEventListener("click", () => {
+        this.mode = "select";
+        this.editingSlotId = this.selectedSlotId;
+        this.render(resolve);
+      });
+      actions.append(rename);
     }
     return actions;
   }
@@ -33754,7 +33861,7 @@ var WelcomeScreen = class {
     newGame.type = "button";
     newGame.setAttribute("aria-pressed", String(this.isNewGameSelected));
     const name = document.createElement("strong");
-    name.textContent = "\u65B0\u6E38\u620F";
+    name.textContent = "\u6DFB\u52A0\u73A9\u5BB6";
     const stats = document.createElement("span");
     stats.textContent = "\u4ECE\u7B2C\u4E00\u4E2A\u8BCD\u5F00\u59CB";
     newGame.append(name, stats);
@@ -33806,9 +33913,11 @@ var WelcomeScreen = class {
   }
   resolveSelectedSlot() {
     if (this.isNewGameSelected || !this.selectedSlotId) {
-      return this.saveManager.createSlot("\u65B0\u7684\u4E16\u754C");
+      return this.saveManager.createSlot(this.newPlayerName);
     }
-    return this.saveManager.selectSlot(this.selectedSlotId) ?? this.saveManager.createSlot("\u65B0\u7684\u4E16\u754C");
+    const slot = this.saveManager.selectSlot(this.selectedSlotId);
+    if (!slot) throw new Error("\u672A\u627E\u5230\u8FD9\u4E2A\u73A9\u5BB6\uFF0C\u8BF7\u91CD\u65B0\u9009\u62E9\u3002");
+    return slot;
   }
   close() {
     this.overlay.classList.add("welcome-leaving");
@@ -34007,6 +34116,7 @@ var Prototype = class {
       },
       (cue) => this.sound.play(cue)
     ).show();
+    mountPlayerStatus(root, slot.name);
     await this.playEnterTransition(root);
     await this.rewardSystem.restoreRewards(slot.rewards);
     this.rewardSystem.warmFishAssetsWhenIdle();
